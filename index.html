@@ -31,7 +31,7 @@ button:disabled{opacity:.6;cursor:wait}
   <div id="msg" role="alert"></div>
 </form>
 <script>
-const SALT='VmLwgSuzVB/MMYvqSL1khQ==',ITER=600000,SK='pw:'+location.pathname;
+const SALT='wkvHd3e71rH08h8Q6JT1Gg==',ITER=600000,SK='pw:'+location.pathname;
 const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function derive(pw){const b=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
   return crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(SALT),iterations:ITER,hash:'SHA-256'},b,{name:'AES-GCM',length:256},false,['decrypt']);}
