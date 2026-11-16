@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>보호된 보고서</title>
+<style>
+:root{--bg:#EDEFF1;--paper:#FFFFFF;--ink:#16191D;--muted:#59616B;--line:#D2D7DD;--steel:#2D5B88;--err:#B4441C}
+@media (prefers-color-scheme: dark){:root{--bg:#111316;--paper:#1A1D21;--ink:#E8EBEE;--muted:#9BA4AE;--line:#2C3137;--steel:#86AED6;--err:#E8865E;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--ink);font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;padding:16px}
+form{background:var(--paper);border:1px solid var(--line);border-top:3px solid var(--steel);border-radius:3px;padding:28px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:20px;margin:0}
+p{margin:0;color:var(--muted);font-size:14px}
+label{font-size:13px;font-weight:600;color:var(--muted)}
+input{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:3px;background:var(--bg);color:var(--ink)}
+input:focus-visible,button:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+button{font:inherit;font-weight:600;padding:10px;border:0;border-radius:3px;background:var(--steel);color:#fff;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+#msg{min-height:1.2em;font-size:13px;color:var(--err)}
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>보호된 보고서</h1>
+  <p>비밀번호를 입력하면 열립니다.</p>
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password" required autofocus>
+  <button id="go" type="submit">열기</button>
+  <div id="msg" role="alert"></div>
+</form>
+<script>
+const SALT='aL6L36YtpZSPz/HW7ngdIA==',ITER=600000,SK='pw:'+location.pathname;
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function derive(pw){const b=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(SALT),iterations:ITER,hash:'SHA-256'},b,{name:'AES-GCM',length:256},false,['decrypt']);}
+async function openDoc(pw){
+  const k=await derive(pw);const r=await fetch('c.enc');const u=new Uint8Array(await r.arrayBuffer());
+  let pt;try{pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(0,12)},k,u.slice(12))}catch(e){return false}
+  try{sessionStorage.setItem(SK,pw)}catch(e){}
+  window.__ek=k;const html=new TextDecoder().decode(pt);
+  document.open();document.write(html);document.close();return true;}
+const f=document.getElementById('f'),go=document.getElementById('go'),msg=document.getElementById('msg'),pw=document.getElementById('pw');
+f.addEventListener('submit',async e=>{e.preventDefault();go.disabled=true;msg.textContent='';go.textContent='여는 중…';
+  if(!(await openDoc(pw.value))){msg.textContent='비밀번호가 맞지 않습니다.';go.disabled=false;go.textContent='열기';pw.select();}});
+let saved=null;try{saved=sessionStorage.getItem(SK)}catch(e){}
+if(saved){openDoc(saved).then(ok=>{if(!ok){try{sessionStorage.removeItem(SK)}catch(e){}}})}
+</script>
+</body>
+</html>
