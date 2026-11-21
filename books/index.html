@@ -929,8 +929,22 @@ async function api(action, data = {}) {
   }
   if (!res.ok) throw new Error('서버 응답 오류 (' + res.status + ')');
   const r = await res.json();
-  if (!r.ok) throw new Error(r.error || '요청 실패');
+  if (!r.ok) {
+    // 쓰는 도중에 PIN·비밀번호가 바뀌었거나 다른 탭에서 다른 사람으로 들어온 경우 → 다시 로그인
+    if ((r.error === 'pw' || r.error === 'nopin') && !$('#app').classList.contains('hidden')) sessionExpired();
+    throw new Error(r.error || '요청 실패');
+  }
   return r;
+}
+function sessionExpired() {
+  store.del('readlog-pw');
+  document.querySelectorAll('dialog[open]').forEach((d) => d.close());
+  stopSlides();
+  $('#app').classList.add('hidden');
+  $('#login').classList.remove('hidden');
+  $('#pw').value = '';
+  drawWhoLogin();
+  $('#login-err').textContent = '로그인 정보가 바뀌었어요. 다시 들어와 주세요. (쓰던 글은 임시 저장돼 있어요)';
 }
 
 async function load() {
@@ -1166,7 +1180,7 @@ $('#mypin-form').addEventListener('submit', async (e) => {
   const a = $('#mp-new').value.trim(), b = $('#mp-new2').value.trim();
   if (!/^\d{4,8}$/.test(a)) { $('#mp-err').textContent = 'PIN은 숫자 4~8자리로 해 주세요.'; return; }
   if (a !== b) { $('#mp-err').textContent = '두 PIN이 달라요.'; return; }
-  try { await api('mypin', { newpin: a }); PW = a; store.set('readlog-pw', a); $('#me-dlg').close(); toast('<b>PIN을 바꿨어요</b>'); }
+  try { await api('mypin', { newpin: a }); PW = a; store.set('readlog-pw', a); store.set('readlog-who', WHO); $('#me-dlg').close(); toast('<b>PIN을 바꿨어요</b>'); }
   catch (err) { $('#mp-err').textContent = errMsg(err); }
 });
 
