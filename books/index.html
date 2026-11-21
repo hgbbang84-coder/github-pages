@@ -92,6 +92,7 @@
   .login-card p { margin: 0 0 22px; color: #767676; }
   .pw-input { width: 100%; padding: 13px; font-size: 22px; letter-spacing: .4em; text-align: center; border: 2px solid #ebebeb; border-radius: 12px; background: #fff; color: #131313; }
   .pw-input:focus { outline: none; border-color: #9bce26; }
+  .pw-input::placeholder { letter-spacing: normal; font-size: 16px; color: #aaa; }
   .login-card .btn-cta { width: 100%; margin-top: 12px; padding: 13px; font-size: 16px; }
   .err { color: var(--danger); min-height: 1.5em; margin-top: 8px; font-size: 14px; }
 
@@ -500,6 +501,35 @@
   .count { text-align: right; font-size: 12px; color: var(--muted); margin-top: 2px; }
   .draft-note { font-size: 12px; color: var(--muted); }
 
+  /* 로그인 / 내 정보 / 관리 */
+  .who-login { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 14px; }
+  .who-login button { border: 0; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; color: #131313; padding: 4px; border-radius: 12px; }
+  .who-login .av { width: 50px; height: 50px; font-size: 18px; transition: transform .15s, box-shadow .15s; }
+  .who-login button:hover .av { transform: scale(1.06); }
+  .who-login button.on { font-weight: 900; }
+  .who-login button.on .av { box-shadow: 0 0 0 3px #fff, 0 0 0 5px #9bce26; }
+  .who-login .admin-pick { width: 100%; font-size: 12px; color: #767676; margin-top: 2px; }
+  .who-login .admin-pick.on { color: #131313; font-weight: 900; text-decoration: underline; }
+  .me-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--paper); border-radius: 99px; padding: 3px 12px 3px 3px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .me-btn .crown-s { font-size: 10px; background: var(--accent); color: #131313; border-radius: 4px; padding: 0 5px; font-weight: 900; }
+  .me-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding-bottom: 18px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+  .me-card b { font-size: 20px; }
+  .adm-row { display: grid; grid-template-columns: 40px 90px 80px 1fr auto auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--rule); }
+  .adm-row:first-of-type { border-top: 0; }
+  .adm-row input[type=password], .adm-in { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--paper); min-width: 0; width: 100%; }
+  .adm-row label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; cursor: pointer; }
+  .adm-row input[type=checkbox] { accent-color: var(--accent-text); width: 16px; height: 16px; }
+  .adm-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; max-width: 560px; }
+  .rules { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; line-height: 1.9; }
+  .muted { color: var(--muted); font-size: 13px; }
+  @media (max-width: 860px) {
+    .adm-row { grid-template-columns: 34px 1fr auto; }
+    .adm-row .adm-st { display: none; }
+    .adm-row input[type=password] { grid-column: 1 / 3; }
+    .adm-form { grid-template-columns: 1fr; }
+    .me-btn span.nm { display: none; }
+  }
+
   /* 알림 / 꽃가루 */
   #toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 140%); background: var(--ink); color: var(--bg); padding: 12px 20px; border-radius: 14px; box-shadow: var(--shadow-lg); z-index: 100; font-weight: 700; transition: transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s, visibility .35s; max-width: calc(100vw - 32px); text-align: center; opacity: 0; visibility: hidden; }
   #toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
@@ -571,8 +601,9 @@
 <section id="login">
   <form class="login-card" id="login-form" autocomplete="off">
     <div class="brand">우리집<b>독서록</b><i></i></div>
-    <p>비밀번호를 입력하세요</p>
-    <input class="pw-input" id="pw" type="password" inputmode="numeric" aria-label="비밀번호" required>
+    <p id="login-hint">누구세요? 얼굴을 고르고 PIN을 넣어 주세요</p>
+    <div class="who-login" id="who-login"></div>
+    <input class="pw-input" id="pw" type="password" inputmode="numeric" aria-label="PIN" autocomplete="current-password" required>
     <button class="btn-cta" id="login-btn" type="submit">들어가기</button>
     <div class="err" id="login-err"></div>
   </form>
@@ -585,6 +616,7 @@
       <button class="brand" id="home" type="button" aria-label="책장으로">우리집<b>독서록</b><i></i></button>
       <div class="searchbar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="q" type="search" placeholder="우리 가족 책장에서 찾기" aria-label="책장 검색"></div>
       <button class="btn-cta" id="add-btn">+ 책 추가</button>
+      <button class="me-btn" id="me-btn" type="button" aria-label="내 정보"></button>
     </div>
     <nav class="gnb" id="nav">
       <button class="nav-btn" data-page="shelf">책장</button>
@@ -593,6 +625,7 @@
       <button class="nav-btn" data-page="challenge">챌린지</button>
       <button class="nav-btn" data-page="badges">배지</button>
       <button class="nav-btn" data-page="awards">시상식</button>
+      <button class="nav-btn hidden" data-page="admin" id="nav-admin">관리</button>
     </nav>
   </header>
 
@@ -623,6 +656,21 @@
     <input type="file" id="photo-file" accept="image/*" class="hidden">
     <div class="err" id="photo-err"></div>
     <p class="fam-note">사진은 작게 줄여서 저장되고, 비밀번호를 아는 가족만 볼 수 있어요. 얼굴이 가운데 오는 사진이 잘 나옵니다.</p>
+  </div>
+</dialog>
+
+<!-- 내 정보 -->
+<dialog id="me-dlg" style="width:min(440px, calc(100vw - 24px))">
+  <div class="dlg-head"><h2>내 정보</h2><button class="x" data-close aria-label="닫기">×</button></div>
+  <div class="dlg-body">
+    <div class="me-card" id="me-card"></div>
+    <form id="mypin-form">
+      <div class="field"><label for="mp-new">새 PIN <span class="sub">숫자 4~8자리</span></label><input type="password" id="mp-new" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
+      <div class="field"><label for="mp-new2">새 PIN 한 번 더</label><input type="password" id="mp-new2" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
+      <button class="btn-primary" type="submit">PIN 바꾸기</button>
+      <div class="err" id="mp-err"></div>
+    </form>
+    <button class="btn" id="logout-btn" style="width:100%;margin-top:6px">나가기 (다른 사람으로 들어가기)</button>
   </div>
 </dialog>
 
@@ -726,6 +774,10 @@ const ago = (iso) => { const d = daysAgo(iso); return d <= 0 ? '오늘' : d === 
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let PW = '';
+let WHO = store.get('readlog-who') || '';   // 로그인한 사람 (가족 이름 또는 '관리자')
+let ME = { name: '', admin: false };
+let members = {};                           // 관리자에게만: { 이름: { pin, admin } }
+const ADMIN = '관리자';
 let entries = [];
 let photos = {};
 let comments = [];
@@ -825,7 +877,7 @@ function demoApi(action, data) {
   store.set('readlog-demo-photos', JSON.stringify(ph));
   store.set('readlog-demo-talk', JSON.stringify(talk));
   store.set('readlog-demo-settings', JSON.stringify(sets));
-  return { ok: true, entries: list, photos: ph, comments: talk, settings: sets };
+  return { ok: true, me: { name: WHO || ADMIN, admin: true }, members: {}, entries: list, photos: ph, comments: talk, settings: sets };
 }
 
 /* 이 컴퓨터 전용 모드: local-config.js 의 키로 카카오를 바로 검색 */
@@ -846,7 +898,12 @@ async function kakaoDirect(q) {
   return ((await r.json()).documents || []).map(mapKakao);
 }
 
-const POSTS = ['add', 'update', 'delete', 'photo', 'comment', 'uncomment', 'settings'];
+const POSTS = ['add', 'update', 'delete', 'photo', 'comment', 'uncomment', 'settings', 'setpin', 'setadmin', 'adminpw', 'mypin'];
+const ERR = {
+  pw: 'PIN이 맞지 않아요.', nopin: '아직 PIN이 없어요. 관리자에게 PIN을 만들어 달라고 하세요.', locked: '여러 번 틀려서 10분 동안 잠겼어요. 잠시 뒤 다시 해 주세요.',
+  forbidden: '자기가 쓴 글만 고치거나 지울 수 있어요.', conflict: '다른 가족이 먼저 이 기록을 고쳤어요. 창을 닫고 다시 열어서 고쳐 주세요. (쓴 글은 임시 저장돼 있어요)',
+};
+const errMsg = (e) => ERR[e && e.message] || (e && e.message) || '알 수 없는 오류';
 async function api(action, data = {}) {
   if (DEMO && action === 'search' && LOCAL_KAKAO_KEY) {
     if (PW !== DEMO_PW) throw new Error('pw');
@@ -855,9 +912,9 @@ async function api(action, data = {}) {
   if (DEMO) return demoApi(action, { ...data, pw: PW });
   let res;
   if (POSTS.includes(action)) {
-    res = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body: JSON.stringify({ ...data, action, pw: PW }) });
+    res = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body: JSON.stringify({ ...data, action, pw: PW, who: WHO }) });
   } else {
-    res = await fetch(CONFIG.SCRIPT_URL + '?' + new URLSearchParams({ ...data, action, pw: PW }));
+    res = await fetch(CONFIG.SCRIPT_URL + '?' + new URLSearchParams({ ...data, action, pw: PW, who: WHO }));
   }
   if (!res.ok) throw new Error('서버 응답 오류 (' + res.status + ')');
   const r = await res.json();
@@ -871,22 +928,41 @@ async function load() {
   photos = r.photos || {};
   comments = r.comments || [];
   settings = r.settings || {};
+  ME = r.me || { name: WHO, admin: false };
+  members = r.members || {};
 }
 async function refresh() { await load(); render(); drawNotice(); }
+const isAdminLogin = () => ME.name === ADMIN;
+// 자기가 쓴 글, 자기 이름의 기록, 또는 관리자만 고치고 지울 수 있음 (서버에서도 똑같이 확인)
+const canEdit = (e) => ME.admin || e.owner === ME.name || e.kid === ME.name;
 
 /* ============ 입장 ============ */
+function drawWhoLogin() {
+  $('#who-login').innerHTML = CONFIG.KIDS.map((k) => `<button type="button" class="${k.name === WHO ? 'on' : ''}" data-who="${esc(k.name)}">${av(k.name)}${esc(k.name)}</button>`).join('') +
+    `<button type="button" class="admin-pick ${WHO === ADMIN ? 'on' : ''}" data-who="${ADMIN}">관리자로 들어가기</button>`;
+  $('#pw').placeholder = WHO === ADMIN ? '관리자 비밀번호' : WHO ? `${WHO}의 PIN` : '';
+  $('#pw').inputMode = WHO === ADMIN ? 'text' : 'numeric';
+}
+drawWhoLogin();
+$('#who-login').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-who]'); if (!b) return;
+  WHO = b.dataset.who; drawWhoLogin(); $('#login-err').textContent = ''; $('#pw').focus();
+});
 $('#login-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
+  if (!WHO) { $('#login-err').textContent = '먼저 얼굴을 골라 주세요.'; return; }
   const btn = $('#login-btn'); btn.disabled = true; $('#login-err').textContent = '';
   try {
     PW = $('#pw').value.trim();
     await load();
-    store.set('readlog-pw', PW);
+    store.set('readlog-pw', PW); store.set('readlog-who', WHO);
+    if (CONFIG.KIDS.some((k) => k.name === WHO)) { kid = WHO; store.set('readlog-kid', kid); }
     enterApp();
   } catch (e) {
-    $('#login-err').textContent = e.message === 'pw' ? '비밀번호가 맞지 않아요.' : '연결에 실패했어요: ' + e.message;
+    $('#login-err').textContent = ERR[e.message] ? errMsg(e) : '연결에 실패했어요: ' + e.message;
   } finally { btn.disabled = false; }
 });
+function logout() { store.del('readlog-pw'); store.del('readlog-who'); location.reload(); }
 function enterApp() {
   $('#login').classList.add('hidden');
   $('#app').classList.remove('hidden');
@@ -895,7 +971,7 @@ function enterApp() {
 }
 (async () => {
   const saved = store.get('readlog-pw');
-  if (!saved) return;
+  if (!saved || !WHO) return;
   PW = saved;
   try { await load(); enterApp(); } catch { store.del('readlog-pw'); PW = ''; }
 })();
@@ -1022,16 +1098,63 @@ function confetti() {
 
 /* ============ 그리기 ============ */
 function render() {
+  if (page === 'admin' && !ME.admin) page = 'shelf';
+  $('#nav-admin').classList.toggle('hidden', !ME.admin);
   document.querySelectorAll('.nav-btn').forEach((b) => b.setAttribute('aria-current', b.dataset.page === page ? 'page' : 'false'));
+  $('#me-btn').innerHTML = `${isAdminLogin() ? `<span class="av" style="--kc:#131313">관</span>` : av(ME.name)}<span class="nm">${esc(ME.name)}</span>${ME.admin ? '<span class="crown-s">관리자</span>' : ''}`;
   drawStories();
   const home = page === 'shelf';
   $('#hero').classList.toggle('hidden', !home);
   $('#ticker').classList.toggle('hidden', !home);
   $('#notice').classList.toggle('hidden', !home || !$('#notice').innerHTML);
   if (home) { drawHero(); drawTicker(); } else stopSlides();
-  ({ shelf: renderShelf, quotes: renderQuotes, monthly: renderMonthly, challenge: renderChallenge, badges: renderBadges, awards: renderAwards })[page]();
+  ({ shelf: renderShelf, quotes: renderQuotes, monthly: renderMonthly, challenge: renderChallenge, badges: renderBadges, awards: renderAwards, admin: renderAdmin })[page]();
   countUp($('#view'));
 }
+
+/* ---------- 관리 (관리자만) ---------- */
+function renderAdmin() {
+  const st = (n) => members[n] || {};
+  $('#view').innerHTML = `<h2 class="page-title">관리</h2><p class="page-sub">관리자만 볼 수 있어요</p>
+    <div class="sheet"><h3>가족 PIN</h3>
+      <p class="muted" style="margin:-4px 0 10px">가족마다 숫자 4~8자리 PIN을 만들어 주세요. 각자 자기 얼굴을 고르고 PIN으로 들어와요. PIN은 암호화되어 저장되고 관리자도 볼 수 없어요(바꾸기만 가능).</p>
+      ${CONFIG.KIDS.map((k) => `<div class="adm-row">${av(k.name, 'md')}<b>${esc(k.name)}</b>
+        <span class="adm-st stag ${st(k.name).pin ? 'ok' : ''}">${st(k.name).pin ? 'PIN 있음' : 'PIN 없음'}</span>
+        <input type="password" inputmode="numeric" maxlength="8" placeholder="${st(k.name).pin ? '새 PIN으로 바꾸기' : '새 PIN 만들기'}" data-pin-in="${esc(k.name)}" autocomplete="new-password">
+        <button class="btn-primary sm" data-pin-save="${esc(k.name)}">저장</button>
+        <label title="관리자 권한을 주면 이 사람으로 들어와도 모든 글을 고치고 지울 수 있어요"><input type="checkbox" data-admin-tog="${esc(k.name)}" ${st(k.name).admin ? 'checked' : ''}>관리자</label>
+      </div>`).join('')}
+    </div>
+    ${isAdminLogin() ? `<div class="sheet"><h3>관리자 비밀번호 바꾸기</h3>
+      <div class="adm-form"><input class="adm-in" type="password" id="apw1" placeholder="새 비밀번호 (6자 이상)" autocomplete="new-password"><input class="adm-in" type="password" id="apw2" placeholder="한 번 더" autocomplete="new-password"><button class="btn-primary" data-apw-save>바꾸기</button></div></div>` : ''}
+    <div class="sheet"><h3>권한 규칙</h3><ul class="rules">
+      <li>가족은 각자 PIN으로 들어오고, 글·하트·한마디는 들어온 사람 이름으로 남아요.</li>
+      <li>기록은 <b>쓴 사람</b>과 <b>그 기록의 주인</b>(누가 읽었나요)만 고치고 지울 수 있어요. 엄마가 대신 추가한 아들 책은 엄마와 아들 모두 고칠 수 있어요.</li>
+      <li>한마디·하트는 남긴 사람만 지울 수 있어요. 가족 사진은 자기 것만 바꿀 수 있어요.</li>
+      <li>가족 목표와 챌린지 보상은 관리자만 정해요. 관리자는 모든 글을 고치고 지울 수 있어요.</li>
+      <li>PIN을 10번 틀리면 10분 동안 잠겨요.</li></ul></div>`;
+}
+async function adminAct(action, data, okMsg) {
+  try { await api(action, data); await load(); render(); toast(`<b>${okMsg}</b>`); return true; }
+  catch (err) { alert(errMsg(err)); return false; }
+}
+
+/* ---------- 내 정보 ---------- */
+$('#me-btn').addEventListener('click', () => {
+  $('#me-card').innerHTML = `${isAdminLogin() ? `<span class="av lg" style="--kc:#131313">관</span>` : av(ME.name, 'lg')}<b>${esc(ME.name)}</b>${ME.admin ? '<span class="stag ok">관리자</span>' : ''}`;
+  $('#mypin-form').classList.toggle('hidden', isAdminLogin());
+  $('#mp-new').value = ''; $('#mp-new2').value = ''; $('#mp-err').textContent = '';
+  $('#me-dlg').showModal();
+});
+$('#logout-btn').addEventListener('click', logout);
+$('#mypin-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const a = $('#mp-new').value.trim(), b = $('#mp-new2').value.trim();
+  if (!/^\d{4,8}$/.test(a)) { $('#mp-err').textContent = 'PIN은 숫자 4~8자리로 해 주세요.'; return; }
+  if (a !== b) { $('#mp-err').textContent = '두 PIN이 달라요.'; return; }
+  try { await api('mypin', { newpin: a }); PW = a; store.set('readlog-pw', a); $('#me-dlg').close(); toast('<b>PIN을 바꿨어요</b>'); }
+  catch (err) { $('#mp-err').textContent = errMsg(err); }
+});
 
 function drawStories() {
   const y = yearNow();
@@ -1261,7 +1384,8 @@ function renderMonthly() {
 /* ---------- 챌린지 ---------- */
 function rewardHTML(key) {
   const t = rewards()[key];
-  return `<div class="reward" data-reward-box="${key}"><span class="rl">보상</span><span class="rt ${t ? '' : 'none'}">${t ? esc(t) : '아직 정하지 않았어요'}</span><button class="btn sm" data-reward="${key}">정하기</button></div>`;
+  if (!t && !ME.admin) return '';
+  return `<div class="reward" data-reward-box="${key}"><span class="rl">보상</span><span class="rt ${t ? '' : 'none'}">${t ? esc(t) : '아직 정하지 않았어요'}</span>${ME.admin ? `<button class="btn sm" data-reward="${key}">정하기</button>` : ''}</div>`;
 }
 const chalHead = (title, desc, key) => `<div class="chal-head"><div><h2>${title}</h2><p>${desc}</p></div>${key ? rewardHTML(key) : ''}</div>`;
 function chalCounts() {
@@ -1286,7 +1410,7 @@ function chalGoal() {
     <div class="sheet">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div class="stack"><b><span data-count="${p.total}">${p.total}</span> / ${p.g}권</b><span style="color:var(--muted)">${Math.round(p.total / p.g * 100)}%</span></div>
-        <span id="goal-edit"><button class="btn sm" data-goal-edit>목표 바꾸기</button></span>
+        ${ME.admin ? '<span id="goal-edit"><button class="btn sm" data-goal-edit>목표 바꾸기</button></span>' : ''}
       </div>
       <div class="big-gauge">${gaugeSpans(p)}</div>
       <div class="legend">${p.parts.map(({ k, n }) => `<span>${av(k.name, 'sm')} ${esc(k.name)} <b>${n}권</b></span>`).join('')}</div>
@@ -1452,7 +1576,26 @@ $('#view').addEventListener('click', async (e) => {
     return;
   }
   if (e.target.closest('[data-goal-save]')) { const v = Math.round(+$('#goal-edit input').value); if (v > 0) await saveSetting({ goal: v }); return; }
+  const ps = e.target.closest('[data-pin-save]');
+  if (ps) {
+    const name = ps.dataset.pinSave, pin = document.querySelector(`[data-pin-in="${CSS.escape(name)}"]`).value.trim();
+    if (!/^\d{4,8}$/.test(pin)) { alert('PIN은 숫자 4~8자리로 해 주세요.'); return; }
+    await adminAct('setpin', { name, pin }, `${name}의 PIN을 저장했어요`);
+    return;
+  }
+  if (e.target.closest('[data-apw-save]')) {
+    const a = $('#apw1').value, b = $('#apw2').value;
+    if (a.length < 6) { alert('관리자 비밀번호는 6자 이상으로 해 주세요.'); return; }
+    if (a !== b) { alert('두 비밀번호가 달라요.'); return; }
+    try { await api('adminpw', { newpw: a }); PW = a; store.set('readlog-pw', a); toast('<b>관리자 비밀번호를 바꿨어요</b>'); render(); }
+    catch (err) { alert(errMsg(err)); }
+    return;
+  }
   const t = e.target.closest('[data-id]'); if (t) openDetail(t.dataset.id);
+});
+$('#view').addEventListener('change', async (e) => {
+  const tg = e.target.closest('[data-admin-tog]');
+  if (tg) await adminAct('setadmin', { name: tg.dataset.adminTog, on: tg.checked }, `${tg.dataset.adminTog}의 관리자 권한을 ${tg.checked ? '켰어요' : '껐어요'}`);
 });
 $('#view').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('[data-reward-box] input, #goal-edit input')) { e.preventDefault(); e.target.parentElement.querySelector('.btn-primary').click(); } });
 async function saveSetting(patch) {
@@ -1472,7 +1615,8 @@ function drawDetail() {
   const row = (l, v) => v ? `<tr><td>${l}</td><td>${v}</td></tr>` : '';
   const hs = heartsOf(e.id);
   const msgs = talksOf(e.id).sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  if (!CONFIG.KIDS.some((k) => k.name === talker)) talker = (CONFIG.KIDS.find((k) => k.name !== e.kid) || CONFIG.KIDS[0]).name;
+  talker = ME.name;
+  const mineOk = canEdit(e);
   const myHeart = hs.find((h) => h.who === talker);
   $('#detail-body').innerHTML = `
     <div class="review-top">
@@ -1498,20 +1642,20 @@ function drawDetail() {
     <div class="sec-label">가족의 한마디</div>
     <div class="talk">
       <div class="hearts"><span class="hn">♥ ${hs.length}</span>${hs.length ? hs.map((h) => av(h.who, 'sm')).join('') : '<span style="color:var(--muted)">첫 하트를 보내 보세요</span>'}</div>
-      ${msgs.map((c) => `<div class="msg">${av(c.who)}<div><div class="mh"><b>${esc(c.who)}</b>${esc(fmtDate(c.at))}</div><div class="mt">${esc(c.text)}</div></div><button class="rm" data-uncomment="${esc(c.id)}" title="지우기" aria-label="한마디 지우기">×</button></div>`).join('')}
+      ${msgs.map((c) => `<div class="msg">${av(c.who)}<div><div class="mh"><b>${esc(c.who)}</b>${esc(fmtDate(c.at))}</div><div class="mt">${esc(c.text)}</div></div>${c.who === ME.name || ME.admin ? `<button class="rm" data-uncomment="${esc(c.id)}" title="지우기" aria-label="한마디 지우기">×</button>` : '<span></span>'}</div>`).join('')}
       <form class="talk-form" id="talk-form">
-        <div class="talk-who" title="누가 남기나요?">${CONFIG.KIDS.map((k) => `<label title="${esc(k.name)}"><input type="radio" name="talker" value="${esc(k.name)}" ${k.name === talker ? 'checked' : ''}>${av(k.name)}</label>`).join('')}</div>
+        ${isAdminLogin() ? `<span class="av" style="--kc:#131313">관</span>` : av(ME.name)}
         <button class="heart-btn ${myHeart ? 'on' : ''}" type="button" id="heart-btn" title="${esc(talker)}의 하트">♥</button>
         <input type="text" id="talk-text" maxlength="200" placeholder="${esc(talker)}의 한마디">
         <button class="btn-primary" type="submit">남기기</button>
       </form>
     </div>
     <div class="review-actions">
-      <button class="btn btn-danger" data-del="${esc(e.id)}">삭제</button>
+      ${mineOk ? `<button class="btn btn-danger" data-del="${esc(e.id)}">삭제</button>` : `<span class="muted">${e.owner ? esc(e.owner) + '이(가) 쓴 기록이에요' : ''}</span>`}
       <span style="flex:1"></span>
       ${isbn ? `<a class="btn" href="https://search.kyobobook.co.kr/search?keyword=${encodeURIComponent(isbn)}" target="_blank" rel="noopener">교보문고에서 보기 ↗</a>` : ''}
-      <button class="btn" data-edit="${esc(e.id)}">고치기</button>
-      ${e.status !== 'done' ? `<button class="btn-primary" data-finish="${esc(e.id)}">다 읽었어요! 독후감 쓰기</button>` : ''}
+      ${mineOk ? `<button class="btn" data-edit="${esc(e.id)}">고치기</button>` : ''}
+      ${mineOk && e.status !== 'done' ? `<button class="btn-primary" data-finish="${esc(e.id)}">다 읽었어요! 독후감 쓰기</button>` : ''}
     </div>`;
   const desc = $('#desc');
   if (desc) desc.addEventListener('click', () => desc.classList.toggle('clamp'));
@@ -1519,31 +1663,31 @@ function drawDetail() {
 }
 async function afterTalk() { await load(); drawDetail(); render(); }
 $('#detail-body').addEventListener('change', (e) => {
-  if (e.target.name === 'talker') { talker = e.target.value; store.set('readlog-me', talker); const t = $('#talk-text').value; drawDetail(); $('#talk-text').value = t; }
+  // (한마디는 들어온 사람 이름으로만 남겨요)
 });
 $('#detail-body').addEventListener('submit', async (e) => {
   if (e.target.id !== 'talk-form') return;
   e.preventDefault();
   const text = $('#talk-text').value.trim(); if (!text) return;
-  try { await api('comment', { entryId: detailId, who: talker, kind: 'comment', text }); await afterTalk(); toast('<b>한마디를 남겼어요</b>'); }
-  catch (err) { alert('남기지 못했어요: ' + err.message); }
+  try { await api('comment', { entryId: detailId, kind: 'comment', text }); await afterTalk(); toast('<b>한마디를 남겼어요</b>'); }
+  catch (err) { alert('남기지 못했어요: ' + errMsg(err)); }
 });
 $('#detail-body').addEventListener('click', async (e) => {
   if (e.target.closest('#heart-btn')) {
     const mineH = heartsOf(detailId).find((h) => h.who === talker);
-    try { await api(mineH ? 'uncomment' : 'comment', mineH ? { id: mineH.id } : { entryId: detailId, who: talker, kind: 'heart' }); await afterTalk(); }
-    catch (err) { alert('하트를 보내지 못했어요: ' + err.message); }
+    try { await api(mineH ? 'uncomment' : 'comment', mineH ? { id: mineH.id } : { entryId: detailId, kind: 'heart' }); await afterTalk(); }
+    catch (err) { alert('하트를 보내지 못했어요: ' + errMsg(err)); }
     return;
   }
   const un = e.target.closest('[data-uncomment]');
-  if (un) { if (!confirm('이 한마디를 지울까요?')) return; try { await api('uncomment', { id: un.dataset.uncomment }); await afterTalk(); } catch (err) { alert(err.message); } return; }
+  if (un) { if (!confirm('이 한마디를 지울까요?')) return; try { await api('uncomment', { id: un.dataset.uncomment }); await afterTalk(); } catch (err) { alert(errMsg(err)); } return; }
   const del = e.target.closest('[data-del]');
   if (del) {
     const x = entries.find((v) => String(v.id) === del.dataset.del);
     if (!x || !confirm(`『${cleanTitle(x.title)}』 기록을 삭제할까요?\n${x.review ? '쓴 독후감과 가족의 한마디도 함께 지워지고, ' : ''}되돌릴 수 없어요.`)) return;
     del.disabled = true; del.textContent = '삭제 중…';
     try { await api('delete', { id: x.id }); store.del('readlog-draft-' + x.id); await refresh(); $('#detail-dlg').close(); }
-    catch (err) { del.disabled = false; del.textContent = '삭제'; alert('삭제하지 못했어요: ' + err.message); }
+    catch (err) { del.disabled = false; del.textContent = '삭제'; alert('삭제하지 못했어요: ' + errMsg(err)); }
     return;
   }
   const ed2 = e.target.closest('[data-edit]'), fin = e.target.closest('[data-finish]');
@@ -1554,8 +1698,8 @@ $('#detail-body').addEventListener('click', async (e) => {
 let photoTarget = '';
 function drawFam() {
   $('#fam').innerHTML = CONFIG.KIDS.map((k) => `<div class="fam-card">${av(k.name, 'lg')}<span class="nm">${esc(k.name)}</span>
-      <span class="acts"><button class="btn" type="button" data-pick="${esc(k.name)}">${photos[k.name] ? '바꾸기' : '사진 선택'}</button>
-      ${photos[k.name] ? `<button class="btn" type="button" data-clear="${esc(k.name)}">지우기</button>` : ''}</span></div>`).join('');
+      ${ME.admin || k.name === ME.name ? `<span class="acts"><button class="btn" type="button" data-pick="${esc(k.name)}">${photos[k.name] ? '바꾸기' : '사진 선택'}</button>
+      ${photos[k.name] ? `<button class="btn" type="button" data-clear="${esc(k.name)}">지우기</button>` : ''}</span>` : '<span class="muted">본인만 바꿀 수 있어요</span>'}</div>`).join('');
 }
 $('#fam').addEventListener('click', async (e) => {
   const p = e.target.closest('[data-pick]'), c = e.target.closest('[data-clear]');
@@ -1610,7 +1754,8 @@ function openEditor(id, finish = false) {
     restoreDraft();
     showForm(finish ? '독후감 쓰기' : '기록 고치기');
   } else {
-    ed = { status: 'done', kid: kid !== '전체' ? kid : CONFIG.KIDS[0].name, finishedOn: todayISO() };
+    const meKid = CONFIG.KIDS.some((k) => k.name === ME.name) ? ME.name : '';
+    ed = { status: 'done', kid: meKid || (kid !== '전체' ? kid : CONFIG.KIDS[0].name), finishedOn: todayISO() };
     if (restoreDraft() && ed.title) showForm('기록하기'); else showSearch();
   }
   $('#edit-dlg').showModal();
@@ -1738,7 +1883,8 @@ $('#step-form').addEventListener('submit', async (ev) => {
   if (d.recommendedBy === d.kid) d.recommendedBy = '';
   if (d.status !== 'done') { d.finishedOn = ''; }
   else if (!d.finishedOn) { $('#edit-err').textContent = '다 읽은 날을 골라 주세요.'; return; }
-  const { manual, ...payload } = d;
+  const { manual, owner, createdAt, updatedAt, ...payload } = d;
+  if (d.id) payload.baseUpdatedAt = ed.updatedAt || '';   // 그 사이 다른 사람이 고쳤는지 서버가 확인
   const wasDone = d.id && (entries.find((x) => x.id === d.id) || {}).status === 'done';
   const before = new Set(badgeList(d.kid).filter((b) => b.ok).map((b) => b.t));
   const btn = $('#save-btn'), label = btn.textContent;
@@ -1757,7 +1903,7 @@ $('#step-form').addEventListener('submit', async (ev) => {
     else if (d.status === 'done' && !wasDone) { confetti(); const p = goalParts(); toast(`『${esc(cleanTitle(d.title))}』 다 읽기 완료! 가족 목표 <b>${p.total} / ${p.g}</b>`); }
     else toast(d.status === 'done' ? '<b>저장했어요</b>' : `<b>책장에 꽂았어요</b> · ${d.status === 'reading' ? '읽는 중' : '읽고 싶은 책'}`);
   } catch (e) {
-    $('#edit-err').textContent = '저장하지 못했어요. 쓴 글은 임시 저장되어 있어요. (' + (e.message === 'pw' ? '비밀번호가 바뀌었어요' : e.message) + ')';
+    $('#edit-err').textContent = e.message === 'conflict' ? errMsg(e) : '저장하지 못했어요. 쓴 글은 임시 저장되어 있어요. (' + errMsg(e) + ')';
   } finally { btn.disabled = false; btn.textContent = label; }
 });
 </script>
