@@ -501,6 +501,15 @@
   .count { text-align: right; font-size: 12px; color: var(--muted); margin-top: 2px; }
   .draft-note { font-size: 12px; color: var(--muted); }
 
+  /* 각자 목표 */
+  .goal-row { display: grid; grid-template-columns: 40px 56px 1fr auto; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); }
+  .goal-row:first-of-type { border-top: 0; }
+  .mini-gauge { height: 12px; border-radius: 99px; background: var(--soft); overflow: hidden; }
+  .mini-gauge span { display: block; height: 100%; border-radius: 99px; animation: grow 1s cubic-bezier(.2,.8,.2,1) both; }
+  .goal-row .gn { font-size: 14px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  .goal-row .gn b { color: var(--ink); font-size: 18px; font-weight: 900; }
+  .goal-row input { width: 70px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; background: var(--paper); }
+
   /* 로그인 / 내 정보 / 관리 */
   .who-login { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 14px; }
   .who-login button { border: 0; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; color: #131313; padding: 4px; border-radius: 12px; }
@@ -1027,7 +1036,10 @@ const byFinishedAsc = (a, b) => String(a.finishedOn).localeCompare(String(b.fini
 const heartsOf = (id) => comments.filter((c) => c.entryId === id && c.kind === 'heart');
 const talksOf = (id) => comments.filter((c) => c.entryId === id && c.kind === 'comment');
 const reviewLen = (e) => String(e.review || '').replace(/\s/g, '').length;
-const goal = () => Math.max(1, +settings.goal || CONFIG.DEFAULT_GOAL);
+// 가족 목표 = 각자 목표의 합. 각자 목표를 안 정했으면 기본 목표를 사람 수로 나눠요.
+const goalOf = (name) => { const g = settings.goals && +settings.goals[name]; return g > 0 ? g : Math.round(CONFIG.DEFAULT_GOAL / CONFIG.KIDS.length); };
+const goal = () => CONFIG.KIDS.reduce((s, k) => s + goalOf(k.name), 0);
+let goalEditing = false;
 const rewards = () => (settings.rewards && typeof settings.rewards === 'object') ? settings.rewards : {};
 const lastTouch = (e) => e.finishedOn || String(e.updatedAt || e.createdAt || '').slice(0, 10);
 
@@ -1176,7 +1188,7 @@ function goalParts() {
   const y = yearNow();
   const yearDone = allDone().filter((e) => inYear(e, y));
   const g = goal();
-  return { y, total: yearDone.length, g, parts: CONFIG.KIDS.map((k) => ({ k, n: yearDone.filter((e) => e.kid === k.name).length })) };
+  return { y, total: yearDone.length, g, parts: CONFIG.KIDS.map((k) => ({ k, n: yearDone.filter((e) => e.kid === k.name).length, pg: goalOf(k.name) })) };
 }
 function gaugeSpans(p) { return p.parts.map(({ k, n }) => n ? `<span style="width:${Math.min(100, n / p.g * 100)}%;background:${esc(k.color)}" title="${esc(k.name)} ${n}권"></span>` : '').join(''); }
 function heroSlides() {
@@ -1185,7 +1197,7 @@ function heroSlides() {
   s.push(`<div class="slide s-goal"><div class="s-txt"><span class="eyebrow">${p.y} 가족 목표</span>
     <h2><b data-count="${p.total}">${p.total}</b> / ${p.g}권</h2>
     <div class="s-gauge">${gaugeSpans(p)}</div>
-    <div class="s-legend">${p.parts.map(({ k, n }) => `<span>${av(k.name, 'sm')}${esc(k.name)} ${n}</span>`).join('')}</div>
+    <div class="s-legend">${p.parts.map(({ k, n, pg }) => `<span>${av(k.name, 'sm')}${esc(k.name)} ${n}/${pg}</span>`).join('')}</div>
     <button class="btn-cta" data-go="challenge">챌린지 보러 가기 →</button></div></div>`);
   const latest = [...allDone()].sort(byFinished)[0];
   if (latest) s.push(`<div class="slide s-book" style="--h:${hue(cleanTitle(latest.title))}"><div class="s-txt"><span class="eyebrow">NEW · ${ago(latest.finishedOn)} 다 읽었어요</span>
@@ -1408,15 +1420,21 @@ function chalGoal() {
   const ht = heightText(stackHeight(allDone()));
   const left = Math.max(0, p.g - p.total);
   const weeksLeft = Math.max(1, Math.ceil((Date.UTC(p.y, 11, 31) - Date.now()) / 6048e5));
-  return chalHead(`${p.y}년 가족 목표`, '가족이 함께 읽은 책을 모두 더해요. 서로 경쟁하지 않고 함께 채워요.', 'goal') + `
+  return chalHead(`${p.y}년 가족 목표`, '가족 목표는 <b>각자 목표를 더한 것</b>이에요. 각자 자기 목표를 채우면 가족 목표도 함께 채워져요.', 'goal') + `
     <div class="sheet">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <div class="stack"><b><span data-count="${p.total}">${p.total}</span> / ${p.g}권</b><span style="color:var(--muted)">${Math.round(p.total / p.g * 100)}%</span></div>
-        ${ME.admin ? '<span id="goal-edit"><button class="btn sm" data-goal-edit>목표 바꾸기</button></span>' : ''}
       </div>
       <div class="big-gauge">${gaugeSpans(p)}</div>
-      <div class="legend">${p.parts.map(({ k, n }) => `<span>${av(k.name, 'sm')} ${esc(k.name)} <b>${n}권</b></span>`).join('')}</div>
-      <p style="color:var(--muted);font-size:14px;margin:14px 0 0">${left ? `남은 ${left}권 · 올해 남은 ${weeksLeft}주 · 가족이 매주 ${Math.ceil(left / weeksLeft)}권씩 읽으면 달성해요` : '목표 달성! 정말 멋져요.'}</p>
+      <p style="color:var(--muted);font-size:14px;margin:14px 0 0">${left ? `남은 ${left}권 · 올해 남은 ${weeksLeft}주 · 가족이 매주 ${Math.ceil(left / weeksLeft)}권씩 읽으면 달성해요` : '가족 목표 달성! 정말 멋져요.'}</p>
+    </div>
+    <div class="sheet">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px"><h3 style="margin:0">각자 목표</h3>
+        ${ME.admin ? (goalEditing ? '<span><button class="btn sm" data-goal-cancel>취소</button> <button class="btn-primary sm" data-goal-save>저장</button></span>' : '<button class="btn sm" data-goal-edit>목표 바꾸기</button>') : ''}</div>
+      ${p.parts.map(({ k, n, pg }) => `<div class="goal-row">${av(k.name, 'md')}<b>${esc(k.name)}</b>
+        <div class="mini-gauge"><span style="width:${Math.min(100, n / pg * 100)}%;background:${esc(k.color)}"></span></div>
+        ${goalEditing ? `<span class="gn"><input type="number" min="1" max="999" value="${pg}" data-goal-in="${esc(k.name)}" aria-label="${esc(k.name)} 목표"> 권</span>`
+          : `<span class="gn"><b>${n}</b> / ${pg}권 ${n >= pg ? '<span class="stag ok">달성!</span>' : ''}</span>`}</div>`).join('')}
     </div>
     <div class="sheet"><h3>우리 가족이 쌓은 책</h3><div class="stack"><b>${ht.h}</b><span style="color:var(--muted)">${ht.t}</span></div>
       <p style="color:var(--muted);font-size:12px;margin:8px 0 0">쪽수를 적은 책은 실제 두께로, 안 적은 책은 1.8cm로 어림해요.</p></div>`;
@@ -1573,11 +1591,15 @@ $('#view').addEventListener('click', async (e) => {
   }
   const rs = e.target.closest('[data-reward-save]');
   if (rs) { await saveSetting({ rewards: { ...rewards(), [rs.dataset.rewardSave]: rs.previousElementSibling.value.trim() } }); return; }
-  if (e.target.closest('[data-goal-edit]')) {
-    $('#goal-edit').innerHTML = `<input type="number" min="1" max="9999" value="${goal()}" style="width:90px;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--paper)"> 권 <button class="btn-primary sm" data-goal-save>저장</button>`;
+  if (e.target.closest('[data-goal-edit]')) { goalEditing = true; renderChallenge(); return; }
+  if (e.target.closest('[data-goal-cancel]')) { goalEditing = false; renderChallenge(); return; }
+  if (e.target.closest('[data-goal-save]')) {
+    const goals = {};
+    document.querySelectorAll('[data-goal-in]').forEach((i) => { goals[i.dataset.goalIn] = Math.max(1, Math.min(999, Math.round(+i.value || 0))) || goalOf(i.dataset.goalIn); });
+    goalEditing = false;
+    await saveSetting({ goals });
     return;
   }
-  if (e.target.closest('[data-goal-save]')) { const v = Math.round(+$('#goal-edit input').value); if (v > 0) await saveSetting({ goal: v }); return; }
   const ps = e.target.closest('[data-pin-save]');
   if (ps) {
     const name = ps.dataset.pinSave, pin = document.querySelector(`[data-pin-in="${CSS.escape(name)}"]`).value.trim();
