@@ -206,7 +206,7 @@
   .pk .v{font-size:1.45rem;font-weight:900;letter-spacing:-.02em;margin-top:3px}
   .pk .v small{font-size:.76rem;font-weight:600;color:var(--muted);margin-left:3px}
   .pk .s{font-size:.72rem;color:var(--muted);margin-top:2px}
-  .drow{display:grid;grid-template-columns:52px minmax(0,1fr) 120px 110px 150px;align-items:center;gap:10px;font-size:.8rem;padding:3px 0}
+  .drow{display:grid;grid-template-columns:52px minmax(0,1fr) 120px 110px;align-items:center;gap:10px;font-size:.8rem;padding:3px 0}
   .drow.dh{font-size:.72rem;font-weight:700;color:var(--faint);border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:3px}
   @media (max-width:640px){.drow{grid-template-columns:44px minmax(0,1fr) 90px;}.drow>span:nth-child(n+4){display:none}}
   .drow .b{height:14px;border-radius:3px;background:var(--use)}
@@ -234,6 +234,7 @@
   .xq .b i{position:absolute;inset:0 auto 0 0;background:color-mix(in srgb,var(--fg) 25%,transparent)}
   .xq .n{text-align:right;color:var(--muted)} .xq .n b{color:var(--fg)}
   td.nm{max-width:340px;white-space:normal;text-align:left}
+  .xday{display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:700;color:var(--muted)}
   @media (max-width:860px){.x2{grid-template-columns:1fr}}
   /* ⑤ 참고 */
   details.ref{margin-top:34px;border-top:1px solid var(--border);padding-top:14px}
@@ -283,6 +284,10 @@
     <div class="htop">
       <h1>출고 진척 현황판</h1>
       <span class="asof" id="hdrAsof"></span>
+      <span class="switch sm" role="group" aria-label="시간 기준" title="날짜 구분과 모든 시각에 적용">
+        <button type="button" id="tz-PT" data-tz="PT">PT (PST)</button>
+        <button type="button" id="tz-KST" data-tz="KST">KST</button>
+      </span>
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" id="tab-report" data-view="report">실적 조회</button>
@@ -406,10 +411,11 @@
           <button type="button" id="sw3-USE" data-type="USE">USE</button>
           <button type="button" id="sw3-STORE" data-type="STORE">매장</button>
         </div>
+        <label class="xday">기준일 <select id="xDaySel"></select></label>
         <span class="note" id="xNote"></span>
       </div>
       <section style="margin-top:14px">
-        <div class="shead"><h2>결품 요약</h2><span class="note">결품 = 결품량(총낱개)이 있는 라인 · 전표 수는 결품 라인이 하나라도 있는 전표</span></div>
+        <div class="shead"><h2>결품 요약</h2><span class="note">기준일에 결품 처리된 라인 (최종작업시간 기준) · 전표 수는 결품 라인이 하나라도 있는 전표</span></div>
         <div class="pkpi" id="xSum"></div>
         <div class="xfacts" id="xFacts"></div>
       </section>
@@ -433,7 +439,7 @@
             <button type="button" id="xs-rate" data-xs="rate">결품률 순</button>
           </span></div>
         <div class="tbl scroll"><table>
-          <thead><tr><th>#</th><th>상품명</th><th>상품코드</th><th>결품 pcs</th><th>결품 OL</th><th>결품 전표</th><th>전체 주문 pcs</th><th>결품률</th></tr></thead>
+          <thead><tr><th>#</th><th>상품명</th><th>상품코드</th><th>구성입수</th><th>결품 pcs</th><th>BOX 환산</th><th>결품 OL</th><th>결품 전표</th><th>그날 처리 pcs</th><th>결품률</th></tr></thead>
           <tbody id="xSkuB"></tbody></table></div>
       </section>
       <section>
@@ -511,7 +517,7 @@
 
       <!-- ⑤ 참고 -->
       <details class="ref" id="refBox">
-        <summary>⑤ 참고<span>러닝 SKU · 건당 OL/pcs · 시간대별 · 시간 기준</span></summary>
+        <summary>⑤ 참고<span>러닝 SKU · 건당 OL/pcs · 시간대별</span></summary>
 
         <section style="margin-top:14px">
           <div class="shead"><h3>러닝 SKU</h3><span class="note" id="skuNote"></span></div>
@@ -548,13 +554,7 @@
           </table></div>
         </section>
 
-        <section>
-          <div class="shead"><h3>시간 기준</h3><span class="note">기본 PT · KST로 바꾸면 날짜 구분과 모든 시각이 KST로 바뀝니다</span></div>
-          <span class="switch sm" role="group" aria-label="시간 기준">
-            <button type="button" id="tz-PT" data-tz="PT">PT</button>
-            <button type="button" id="tz-KST" data-tz="KST">KST</button>
-          </span>
-        </section>
+        
       </details>
     </div>
   </div>
@@ -587,15 +587,18 @@ function colIdx(rows){
   const base={code:f('거래처코드'),slip:f('전표번호'),work:f('최종작업시간'),tcs:f('TCS수신시간'),odate:h.indexOf('주문일자'),sku:h.indexOf('상품코드'),name:h.indexOf('상품명'),why:h.findIndex(x=>/결품사유/.test(x))};
   // 형식 1: 1단 헤더 ('출고량 총낱개', '원주문량1 총낱개', '결품량 총낱개')
   const s1=h.findIndex(x=>/^출고량\s*총낱개$/.test(x)), o1=h.findIndex(x=>/^원주문량\d*\s*총낱개$/.test(x));
+  const g1=g=>{const f=sf=>h.findIndex(x=>new RegExp('^'+g+'\\s*'+sf+'$').test(x));return {B:f('BOX'),P:f('PACK'),N:f('낱개'),T:f('총낱개')};};
   if(s1>=0&&o1>=0){let k=h.findIndex(x=>/결품/.test(x)&&/총낱개/.test(x));if(k<0)k=h.findIndex(x=>/결품/.test(x));
-    return {...base,start:hi+1,ship:s1,ord:o1,short:k};}
+    return {...base,start:hi+1,ship:s1,ord:o1,short:k,box:[g1('원주문량\\d*'),g1('출고량'),g1('총?결품량')]};}
   // 형식 2: 2단 헤더 ('출고량' / 하위 '총낱개')
   const iShipG=h.indexOf('출고량'), iOrdG=h.findIndex(x=>x.startsWith('원주문량'));
   if(iShipG<0||iOrdG<0)throw new Error("'출고량 총낱개' / '원주문량 총낱개' 열을 찾지 못했습니다.");
   const tot=(a,b)=>{for(let i=a;i<b;i++)if(sub[i]==='총낱개')return i;throw new Error("'총낱개' 하위 열을 찾지 못했습니다.");};
   const g=h.findIndex(x=>/결품/.test(x)); let k=g;
   if(g>=0)for(let i=g;i<Math.min(g+5,sub.length);i++)if(sub[i]==='총낱개'){k=i;break;}
-  return {...base,start:hi+2,ship:tot(iShipG,iOrdG),ord:tot(iOrdG,Math.max(h.length,sub.length)),short:k};
+  const g2=g=>{const gi=h.findIndex(x=>new RegExp('^'+g).test(x)),o={B:-1,P:-1,N:-1,T:-1};if(gi<0)return o;
+    for(let i=gi;i<Math.min(gi+5,sub.length);i++){if(sub[i]==='BOX')o.B=i;else if(sub[i]==='PACK')o.P=i;else if(sub[i]==='낱개')o.N=i;else if(sub[i]==='총낱개')o.T=i;}return o;};
+  return {...base,start:hi+2,ship:tot(iShipG,iOrdG),ord:tot(iOrdG,Math.max(h.length,sub.length)),short:k,box:[g2('원주문량'),g2('출고량'),g2('총?결품량')]};
 }
 
 function aggregate(rows,fname){
@@ -617,6 +620,7 @@ function aggregate(rows,fname){
   // 결품 분석용: 결품 행, 관련 전표, SKU별 주문 합계(결품률)
   const xLines=[], xSku=new Map(), skuTot={U:new Map(),S:new Map()}, whyL=[], tot={U:{q:0,ol:0},S:{q:0,ol:0}};
   const xSkuIdx=(code,name,T)=>{const k=T+'|'+code;let e=xSku.get(k);if(!e){e={i:xSku.size,code,name:String(name||''),T};xSku.set(k,e);}return e.i;};
+  const ipq=new Map();   // 상품 구성입수: BOX 1개당 낱개 = (총낱개 − 낱개) ÷ BOX (PACK 없는 행)
   const whyIdx=w=>{w=String(w??'').trim();let i=whyL.indexOf(w);if(i<0){whyL.push(w);i=whyL.length-1;}return i;};
   let n=0,noTcs=0; const odates=new Set();
   for(let i=ix.start;i<rows.length;i++){
@@ -641,6 +645,8 @@ function aggregate(rows,fname){
     if(!use&&tcs!=null){   // 매장: pcs 단위, 행 묶음 [코드, 수신분, 처리분, 주문, 출고, 완결, 행수, 결품]
       const c=ci(code),tm=Math.floor(tcs/MIN),em=ev==null?-1:Math.floor(ev/MIN),k=c+','+tm+','+em;
       let a=ln.get(k); if(!a){a=[c,tm,em,0,0,0,0,0];ln.set(k,a);} a[3]+=ord;a[4]+=shp;a[5]+=done;a[6]++;a[7]+=xQ;}
+    if(ix.sku>=0&&ix.box)for(const g of ix.box){if(!(g.B>=0&&g.T>=0))continue;const B=num(r[g.B]);if(!(B>0)||(g.P>=0&&num(r[g.P])>0))continue;
+      const q=(num(r[g.T])-(g.N>=0?num(r[g.N]):0))/B;if(q>0&&Number.isInteger(q)){const c=String(r[ix.sku]??'').trim();if(c&&!ipq.has(c))ipq.set(c,q);}}
     if(use&&tcs!=null&&ord-done>0&&ix.sku>=0){const code=String(r[ix.sku]??'').trim();
       if(code){let w=wOrd.get(slip);if(!w){w={tm:Math.floor(tcs/MIN),s:[],p:0,l:0};wOrd.set(slip,w);}
         w.s.push(wIdx(code,ix.name>=0?r[ix.name]:''));w.p+=ord-done;w.l++;}}
@@ -673,11 +679,17 @@ function aggregate(rows,fname){
     sku:ix.sku>=0?{bP:isFinite(bP)?bP:0,bK:isFinite(bK)?bK:0,U:skuOut('U'),S:skuOut('S')}:null,
     W:ix.sku>=0?{sku:wCodes,g:wGwp,o:[...wOrd.entries()].sort((a,b)=>a[1].tm-b[1].tm).map(([sl,w])=>[sl,w.tm,[...new Set(w.s)],w.p,w.l])}:null,
     X:ix.short>=0?(()=>{   // 결품 분석
+      const proc=new Map();   // 결품 SKU의 처리(출고+결품) pcs: [sku, KST 시(hour), 출고, 결품]
+      if(xSku.size&&ix.sku>=0)for(let i=ix.start;i<rows.length;i++){const r=rows[i];if(!Array.isArray(r)||!String(r[ix.slip]??'').trim())continue;
+        const T=String(r[ix.code]??'').trim().toUpperCase()==='FE'?'U':'S', e=xSku.get(T+'|'+String(r[ix.sku]??'').trim()); if(!e)continue;
+        const ord=num(r[ix.ord]),shp=num(r[ix.ship]),sh=ix.short>=0?num(r[ix.short]):0; if(!(shp>0||sh>0))continue;
+        const ev=wall(r[ix.work])??asof; if(ev==null)continue; const hk=Math.floor(ev/HOUR), sq=Math.min(shp,ord), xq=Math.min(sh,ord-sq), kk=e.i+','+hk;
+        let a=proc.get(kk); if(!a){a=[e.i,hk,0,0];proc.set(kk,a);} a[2]+=sq; a[3]+=xq;}
       const slips=[...new Set(xLines.map(l=>(l[0]?'S':'U')+'|'+l[1]))], si=new Map(slips.map((k,i)=>[k,i]));
       const ordOut=slips.map(k=>{const [T,sl]=[k[0],k.slice(2)], o=orders[T==='U'?'USE':'STORE'].get(sl);
         return [sl,T==='U'?0:1,o.tcs==null?-1:Math.floor(o.tcs/MIN),o.L,o.xl,o.sl,o.pl,o.pcs,o.xp];});
-      const skuOut=[...xSku.values()].sort((a,b)=>a.i-b.i).map(e=>{const st=skuTot[e.T].get(e.code)||{q:0,n:0};return [e.code,e.name,st.q,st.n,e.T==='U'?0:1];});
-      return {why:whyL,tot,sku:skuOut,ord:ordOut,ln:xLines.map(l=>[l[0],si.get((l[0]?'S':'U')+'|'+l[1]),l[2],l[3],l[4],l[5],l[6],l[7],l[8]])};})():null};
+      const skuOut=[...xSku.values()].sort((a,b)=>a.i-b.i).map(e=>{const st=skuTot[e.T].get(e.code)||{q:0,n:0};return [e.code,e.name,st.q,st.n,e.T==='U'?0:1,ipq.get(e.code)||0];});
+      return {why:whyL,tot,sku:skuOut,ord:ordOut,proc:[...proc.values()],ln:xLines.map(l=>[l[0],si.get((l[0]?'S':'U')+'|'+l[1]),l[2],l[3],l[4],l[5],l[6],l[7],l[8]])};})():null};
 }
 /* ===== CORE-END ===== */
 
@@ -827,6 +839,7 @@ function load(){let j={};try{j=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}
     state.mig=3; save();
   }
   if(state.mig<4){ if(state.ev==='2차 BF')state.ev='블프'; state.mig=4; save(); }   // 행사명 표기 변경
+  if(state.mig<5){ state.tz='PT'; state.mig=5; save(); }   // 시간 기준 기본값 PT
   }
 function save(){
   const keep={snaps:state.snaps,cur:state.cur,type:state.type,hm:state.hm,tz:state.tz,ev:state.ev,start:state.start,end:state.end,
@@ -851,7 +864,7 @@ function evCtx(m){
 }
 
 /* ===== 라우팅 (탭) ===== */
-function setHdr(){const s=curSnap();
+function setHdr(){['PT','KST'].forEach(z=>$('tz-'+z).setAttribute('aria-pressed',String(z===state.tz)));const s=curSnap();
   $('hdrAsof').innerHTML=s?`<b>${fT(tzConv(s.asof,state.tz))} ${state.tz}</b> 기준`:'';}
 function route(){
   const h=location.hash.slice(1);
@@ -945,7 +958,6 @@ function renderReport(){
   $('noData').hidden=!!s; $('report').hidden=!s; if(!s)return;
   state.cur=s.id;
   const m=model(s), Ds=dayOf(m);
-  ['PT','KST'].forEach(z=>$('tz-'+z).setAttribute('aria-pressed',String(z===state.tz)));
   $('snapSel').innerHTML=state.snaps.map(x=>`<option value="${esc(x.id)}"${x.id===s.id?' selected':''}>${fT(tzConv(x.asof,state.tz))} ${state.tz}</option>`).join('');
   $('daySel').innerHTML=[...m.days].reverse().map(d=>`<option value="${d===m.lastDay?'last':d}"${d===Ds?' selected':''}>${fDayW(d)}${d===m.lastDay?' · 최신':''}</option>`).join('');
   $('snapMeta').textContent=`${s.fname} · ${fmt(s.rows)}행 · ${s.hasShort?'결품 열 반영':'결품 열 없음'} · ${state.tz}`;
@@ -1227,10 +1239,9 @@ function renderWave(s){
     pk('좌수 (OL)',fmt(P.ol),'',`건당 ${P.n?fmt1(P.ol/P.n):'—'}`)+pk('SKU',fmt(P.sku),'',`사은품 ${P.gwp}개 포함`)+
     pk('건당 SKU',P.n?fmt1(P.ol/P.n):'—','','')+
     pk('1SKU 주문',fmt(P.n1),'건',`건 ${pctT(P.n1,P.n)} · pcs ${pctT(P.p1,P.pcs)}`);
-  const lab={1:'1 SKU',2:'2',3:'3',4:'4',5:'5',6:'6~9',10:'10+'}, mx=Math.max(1,...P.dist.values()); let cn=0; const cs=new Set();
-  $('pDist').innerHTML=`<div class="drow dh"><span>SKU 수</span><span></span><span class="n">전표</span><span class="n">필요 고유 SKU</span><span class="n">누적 (이하 전부)</span></div>`+[1,2,3,4,5,6,10].map(b=>{const c=P.dist.get(b)||0, st=P.dsk.get(b)||new Set();
-    cn+=c; for(const k of st)cs.add(k);
-    return `<div class="drow"><span>${lab[b]}</span><span class="b ${b===1?'one':''}" style="width:${Math.max(c?1:0,c/mx*100)}%"></span><span class="n"><b>${fmt(c)}</b>건 · ${pctT(c,P.n)}</span><span class="n"><b>${fmt(st.size)}</b> SKU</span><span class="n">${fmt(cn)}건 · <b>${fmt(cs.size)}</b> SKU</span></div>`;}).join('');
+  const lab={1:'1 SKU',2:'2',3:'3',4:'4',5:'5',6:'6~9',10:'10+'}, mx=Math.max(1,...P.dist.values());
+  $('pDist').innerHTML=`<div class="drow dh"><span>SKU 수</span><span></span><span class="n">전표</span><span class="n">필요 고유 SKU</span></div>`+[1,2,3,4,5,6,10].map(b=>{const c=P.dist.get(b)||0, st=P.dsk.get(b)||new Set();
+    return `<div class="drow"><span>${lab[b]}</span><span class="b ${b===1?'one':''}" style="width:${Math.max(c?1:0,c/mx*100)}%"></span><span class="n"><b>${fmt(c)}</b>건 · ${pctT(c,P.n)}</span><span class="n"><b>${fmt(st.size)}</b> SKU</span></div>`;}).join('');
   // 결과
   const r=WV.cur;
   $('wRes').innerHTML=r?`<div class="wbox"><div><div class="it">웨이브 ${r.no} · SKU ${fmt(r.K)}개 지정</div><div class="big">${fmt(r.n)}건</div></div>
@@ -1286,45 +1297,53 @@ document.addEventListener('click',e=>{
   else{copyText(f.text,$('wMsg')?'wMsg':'copyMsg2',null);}
 });
 
-/* ===== 결품 분석 탭 ===== */
+/* ===== 결품 분석 탭 (기준일 하루 단위, PT/KST) ===== */
 function renderShortage(){
   const s=curSnap(), X=s&&s.X;
   $('noData3').hidden=!!X; $('shortBox').hidden=!X;
   if(!X){$('noData3T').textContent=s?'이 추출본에는 결품 열이 없습니다':'불러온 파일이 없습니다';return;}
-  const k=state.type, Tn=k==='USE'?0:1, u=k==='USE'?'건':'pcs', tz=state.tz, cv=m=>m<0?null:tzConv(m*MIN,tz);
+  const m=model(s), k=state.type, Tn=k==='USE'?0:1, tz=state.tz, cv=mm=>mm<0?null:tzConv(mm*MIN,tz), Ds=dayOf(m), De=Ds+DAY;
   ['USE','STORE'].forEach(x=>$('sw3-'+x).setAttribute('aria-pressed',String(x===k)));
   ['pcs','rate'].forEach(x=>$('xs-'+x).setAttribute('aria-pressed',String(x===state.xs)));
-  const L=X.ln.filter(l=>l[0]===Tn), O=X.ord.filter(o=>o[1]===Tn), tot=X.tot[Tn?'S':'U'], asof=tzConv(s.asof,tz);
-  $('xNote').textContent=`${k==='USE'?'USE (FE)':'매장 (FE 외)'} · ${fT(asof)} ${tz} 기준 · 파일 전체 기간`;
+  const LA=X.ln.filter(l=>l[0]===Tn), inDay=l=>{const t=cv(l[8]);return t!=null&&t>=Ds&&t<De;}, L=LA.filter(inDay);
+  // 기준일 선택: 결품이 있었던 날 + 최신일
+  const xd=new Set(LA.map(l=>cv(l[8])).filter(t=>t!=null).map(db)); xd.add(m.lastDay);
+  $('xDaySel').innerHTML=[...xd].filter(d=>d<=m.lastDay).sort((a,b)=>b-a).map(d=>`<option value="${d===m.lastDay?'last':d}"${d===Ds?' selected':''}>${fDayW(d)}${d===m.lastDay?' · 최신':''}</option>`).join('');
+  $('xNote').textContent=`${k==='USE'?'USE (FE)':'매장 (FE 외)'} · ${fDayW(Ds)} ${tz} 처리분 · ${Ds===m.lastDay?fHM(m.asof)+' 현재':'마감'}`;
+  const slips=new Set(L.map(l=>l[1])), O=[...slips].map(i=>X.ord[i]).filter(Boolean);
   const xp=L.reduce((a,l)=>a+l[5],0), skus=new Set(L.map(l=>l[2]));
   const full=O.filter(o=>o[4]===o[3]&&o[5]===0), partDone=O.filter(o=>!(o[4]===o[3]&&o[5]===0)&&o[6]===0), partOpen=O.filter(o=>o[6]>0);
   const why=new Map(); L.forEach(l=>{const w=X.why[l[6]]||'(빈칸)';why.set(w,(why.get(w)||0)+1);});
+  // 그날 결품 SKU의 처리(출고+결품) pcs
+  const proc=new Map(); for(const [si,hk,sp,xq] of X.proc||[]){if((X.sku[si]||[])[4]!==Tn)continue;const t=tzConv(hk*HOUR,tz);if(t<Ds||t>=De)continue;const e=proc.get(si)||{s:0,x:0};e.s+=sp;e.x+=xq;proc.set(si,e);}
+  let procAll=0; for(const [si,e] of proc)if(skus.has(si))procAll+=e.s+e.x;
   $('xSum').innerHTML=pk('결품 전표',fmt(O.length),'건',`전량 결품 ${fmt(full.length)} · 일부 ${fmt(O.length-full.length)}`)+
-    pk('결품 OL',fmt(L.length),'',`전체 OL의 ${pctT(L.length,tot.ol)}`)+
-    pk('결품 pcs',fmt(xp),'pcs',`전체 주문 pcs의 ${pctT(xp,tot.q)}`)+
-    pk('결품 SKU',fmt(skus.size),'',`OL당 ${L.length?fmt1(xp/L.length):'—'} pcs`)+
+    pk('결품 OL',fmt(L.length),'',`OL당 ${L.length?fmt1(xp/L.length):'—'} pcs`)+
+    pk('결품 pcs',fmt(xp),'pcs',`결품 SKU 처리량의 ${pctT(xp,procAll)}`)+
+    pk('결품 SKU',fmt(skus.size),'',`구성입수 확인 ${fmt([...skus].filter(i=>(X.sku[i]||[])[5]>0).length)}개`)+
     pk('전량 결품 전표',fmt(full.length),'건',`결품 전표의 ${pctT(full.length,O.length)}`)+
-    pk('결품사유',fmt(why.size),'종',[...why].sort((a,b)=>b[1]-a[1]).slice(0,2).map(([w,c])=>`${esc(w||'(빈칸)')} ${fmt(c)}`).join(' · '));
-  // 한눈에 보는 수치
-  const lineFull=L.filter(l=>l[5]>=l[3]).length, one=L.filter(l=>l[5]===1).length, oneOrd=L.filter(l=>l[3]===1).length;
+    pk('결품사유',fmt(why.size),'종',[...why].sort((a,b)=>b[1]-a[1]).slice(0,2).map(([w,c])=>`${esc(w)} ${fmt(c)}`).join(' · ')||'—');
+  // 수치
+  const lineFull=L.filter(l=>l[5]>=l[3]).length, one=L.filter(l=>l[5]===1).length, oneOrd=L.filter(l=>l[5]===1&&l[3]===1).length;
   const skuX=new Map(); L.forEach(l=>skuX.set(l[2],(skuX.get(l[2])||0)+l[5]));
   const top10=[...skuX.values()].sort((a,b)=>b-a).slice(0,10).reduce((a,v)=>a+v,0);
-  const byDay=new Map(); L.forEach(l=>{const t=cv(l[8]);if(t==null)return;const d=db(t);byDay.set(d,(byDay.get(d)||0)+1);});
-  const peak=[...byDay].sort((a,b)=>b[1]-a[1])[0];
-  const lag=L.filter(l=>l[7]>=0&&l[8]>=0).map(l=>(l[8]-l[7])/60).sort((a,b)=>a-b), med=lag.length?lag[Math.floor(lag.length/2)]:null;
-  $('xFacts').innerHTML=[
+  const byH=Array(24).fill(0); L.forEach(l=>byH[d_(cv(l[8])).getUTCHours()]++); const ph=byH.indexOf(Math.max(...byH));
+  const lag=L.filter(l=>l[7]>=0).map(l=>(l[8]-l[7])/60).sort((a,b)=>a-b), med=lag.length?lag[Math.floor(lag.length/2)]:null;
+  const boxX=L.filter(l=>{const q=(X.sku[l[2]]||[])[5];return q>1&&l[5]>=q;}).length;
+  $('xFacts').innerHTML=L.length?[
     `주문 수량 전체가 결품인 라인 <b>${fmt(lineFull)} / ${fmt(L.length)}</b> (${pctT(lineFull,L.length)})`,
-    `결품 1 pcs 라인 <b>${fmt(one)}</b> (${pctT(one,L.length)}) · 그중 원주문 자체가 1 pcs인 라인 <b>${fmt(oneOrd)}</b>`,
-    `상위 10개 SKU 비중 <b>${pctT(top10,xp)}</b> (결품 pcs 기준)`,
-    peak?`결품이 가장 많은 날 <b>${fDayW(peak[0])}</b> ${fmt(peak[1])} OL (${pctT(peak[1],L.length)})`:'',
+    `결품 1 pcs 라인 <b>${fmt(one)}</b> (${pctT(one,L.length)}) · 그중 원주문도 1 pcs <b>${fmt(oneOrd)}</b>`,
+    `상위 10개 SKU 비중 <b>${pctT(top10,xp)}</b>`,
+    `가장 많은 시간대 <b>${p2(ph)}시</b> ${fmt(byH[ph])} OL`,
+    boxX?`1박스 이상 결품 라인 <b>${fmt(boxX)}</b>`:'',
     med!=null?`TCS 수신 → 결품 처리 중앙값 <b>${med<24?fmt1(med)+'시간':fmt1(med/24)+'일'}</b>`:''
-  ].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
-  // 결품 전표 유형
-  const sumO=a=>({n:a.length,xl:a.reduce((z,o)=>z+o[4],0),xp:a.reduce((z,o)=>z+o[8],0)});
+  ].filter(Boolean).map(x=>`<span>${x}</span>`).join(''):`<span>${fDayW(Ds)}에 결품 처리된 라인이 없습니다</span>`;
+  // 유형
+  const lx=new Map(); L.forEach(l=>{const e=lx.get(l[1])||{n:0,p:0};e.n++;e.p+=l[5];lx.set(l[1],e);});
+  const sumO=a=>({n:a.length,xl:a.reduce((z,o)=>z+(lx.get(X.ord.indexOf(o))||{n:0}).n,0),xp:a.reduce((z,o)=>z+(lx.get(X.ord.indexOf(o))||{p:0}).p,0)});
   const tr=(lab,sub,a)=>{const z=sumO(a);return `<tr><td>${lab}<div style="font-size:.72rem;color:var(--faint)">${sub}</div></td><td><b>${fmt(z.n)}</b>건</td><td>${pctT(z.n,O.length)}</td><td>${fmt(z.xl)} OL</td><td>${fmt(z.xp)} pcs</td></tr>`;};
   $('xType').innerHTML=`<thead><tr><th>유형</th><th>전표</th><th>비중</th><th>결품 OL</th><th>결품 pcs</th></tr></thead><tbody>`+
-    tr('전량 결품','모든 라인 결품 · 출고 0 → 고객 주문 취소 형태',full)+
-    tr('일부 결품 · 나머지 출고','일부 라인만 결품, 남은 라인은 출고 완료',partDone)+
+    tr('전량 결품','모든 라인 결품 · 출고 0 → 고객 주문 취소 형태',full)+tr('일부 결품 · 나머지 출고','일부 라인만 결품, 남은 라인은 출고 완료',partDone)+
     tr('일부 결품 · 나머지 미처리','일부 라인 결품, 남은 라인 아직 미출고',partOpen)+
     `<tr class="tot"><td>합계</td><td>${fmt(O.length)}건</td><td></td><td>${fmt(L.length)} OL</td><td>${fmt(xp)} pcs</td></tr></tbody>`;
   // 라인당 결품 수량
@@ -1332,45 +1351,46 @@ function renderShortage(){
   L.forEach(l=>{const b=Math.min(5,Math.max(1,Math.round(l[5])));const e=qm.get(b);e.n++;if(l[5]>=l[3])e.f++;});
   const qmx=Math.max(1,...[...qm.values()].map(e=>e.n));
   $('xQty').innerHTML=qb.map(b=>{const e=qm.get(b);return `<div class="xq"><span>${b===5?'5+':b} pcs</span><span class="b" style="width:${Math.max(e.n?1:0,e.n/qmx*100)}%"><i style="width:${pct(e.n-e.f,e.n)}%"></i></span><span class="n"><b>${fmt(e.n)}</b> OL · 전량 ${pctT(e.f,e.n)}</span></div>`;}).join('')+
-    `<div class="hlegend"><span>막대 = 결품 OL · 진한 부분 = 주문 일부만 결품(나머지는 주문 전량 결품)</span></div>`;
-  // 일자별·시간대별
-  drawXDay(L,cv); 
-  // 상품별
+    `<div class="hlegend"><span>막대 = 결품 OL · 진한 부분 = 주문 일부만 결품</span></div>`;
+  drawXDay(LA,cv,Ds);
+  // 상품별 (그날)
   const sk=new Map();
-  L.forEach(l=>{let e=sk.get(l[2]);if(!e){const m=X.sku[l[2]]||['','',0,0];e={code:m[0],name:m[1],oq:m[2],xp:0,xl:0,sl:new Set()};sk.set(l[2],e);}e.xp+=l[5];e.xl++;e.sl.add(l[1]);});
-  let arr=[...sk.values()].map(e=>({...e,rate:e.oq>0?e.xp/e.oq:0}));
-  if(state.xs==='rate'){arr=arr.filter(e=>e.oq>=20).sort((a,b)=>b.rate-a.rate||b.xp-a.xp);$('xSkuNote').textContent='결품률 = 결품 pcs ÷ 그 SKU 전체 주문 pcs · 전체 주문 20 pcs 이상 SKU만 · 상위 30';}
-  else{arr.sort((a,b)=>b.xp-a.xp||b.xl-a.xl);$('xSkuNote').textContent=`결품 SKU ${fmt(sk.size)}개 중 상위 30 · 사은품(GWP)은 거의 모든 주문에 들어 있어 취소 시 함께 결품됩니다`;}
+  L.forEach(l=>{let e=sk.get(l[2]);if(!e){const mm=X.sku[l[2]]||['','',0,0,0,0];e={i:l[2],code:mm[0],name:mm[1],ip:mm[5]||0,xp:0,xl:0,sl:new Set()};sk.set(l[2],e);}e.xp+=l[5];e.xl++;e.sl.add(l[1]);});
+  let arr=[...sk.values()].map(e=>{const pr=proc.get(e.i);const pp=pr?pr.s+pr.x:e.xp;return {...e,pp,rate:pp>0?e.xp/pp:0};});
+  if(state.xs==='rate'){arr=arr.filter(e=>e.pp>=10).sort((a,b)=>b.rate-a.rate||b.xp-a.xp);$('xSkuNote').textContent='결품률 = 그날 결품 pcs ÷ 그날 그 SKU 처리 pcs(출고+결품) · 처리 10 pcs 이상 · 상위 30';}
+  else{arr.sort((a,b)=>b.xp-a.xp||b.xl-a.xl);$('xSkuNote').textContent=`${fDayW(Ds)} 결품 SKU ${fmt(sk.size)}개 중 상위 30 · 구성입수 = BOX 1개당 낱개 (박스 단위 기록이 있는 SKU만)`;}
   $('xSkuB').innerHTML=arr.slice(0,30).map((e,i)=>`<tr><td>${i+1}</td><td class="nm" title="${esc(e.name)}">${/^\s*\(GWP\)/i.test(e.name)?'<span class="pill mute">사은품</span> ':''}${esc(e.name.slice(0,60))}</td>
-    <td class="mono">${esc(e.code)}</td><td><b>${fmt(e.xp)}</b></td><td>${fmt(e.xl)}</td><td>${fmt(e.sl.size)}</td><td>${fmt(e.oq)}</td><td>${e.oq?(e.rate*100).toFixed(1)+'%':'—'}</td></tr>`).join('')||`<tr><td colspan="8" class="empty">결품이 없습니다</td></tr>`;
-  // 확인 필요
-  const ordSlip=i=>X.ord[i]?X.ord[i][0]:'';
+    <td class="mono">${esc(e.code)}</td><td>${e.ip?fmt(e.ip)+'입':'—'}</td><td><b>${fmt(e.xp)}</b></td><td>${e.ip>1?fmt1(e.xp/e.ip)+' BOX':'—'}</td>
+    <td>${fmt(e.xl)}</td><td>${fmt(e.sl.size)}</td><td>${fmt(e.pp)}</td><td>${e.pp?(e.rate*100).toFixed(1)+'%':'—'}</td></tr>`).join('')||`<tr><td colspan="10" class="empty">${fDayW(Ds)}에 결품이 없습니다</td></tr>`;
+  // 확인 필요 (그날)
   const chk=L.map(l=>{const w=X.why[l[6]]||'', rem=l[3]-l[4]-l[5], rs=[];
       if(!w)rs.push('사유 빈칸'); if(rem>0)rs.push('남은 수량 있음'); if(rem<0)rs.push('출고+결품 > 원주문'); return {l,w,rem,rs};}).filter(x=>x.rs.length);
-  $('xChkB').innerHTML=chk.length?chk.map(({l,w,rem,rs})=>{const m=X.sku[l[2]]||['',''];return `<tr><td class="mono">${esc(ordSlip(l[1]))}</td><td class="nm">${esc(String(m[1]).slice(0,48))}</td>
+  $('xChkB').innerHTML=chk.length?chk.map(({l,w,rem,rs})=>{const mm=X.sku[l[2]]||['',''];return `<tr><td class="mono">${esc((X.ord[l[1]]||[''])[0])}</td><td class="nm">${esc(String(mm[1]).slice(0,48))}</td>
       <td>${fmt(l[3])}</td><td>${fmt(l[4])}</td><td>${fmt(l[5])}</td><td class="${rem?'crit':''}">${fmt(rem)}</td><td>${esc(w||'(빈칸)')}</td><td>${fT(cv(l[8]))}</td><td>${rs.map(r=>`<span class="pill warn">${r}</span>`).join(' ')}</td></tr>`;}).join('')
-    :`<tr><td colspan="9" class="empty">확인이 필요한 결품 라인이 없습니다</td></tr>`;
+    :`<tr><td colspan="9" class="empty">${fDayW(Ds)}에 확인이 필요한 결품 라인이 없습니다</td></tr>`;
 }
-function drawXDay(L,cv){
-  const days=new Map(); for(const l of L){const t=cv(l[8]);if(t==null)continue;const d=db(t);let e=days.get(d);if(!e){e={t:d,n:0,p:0,sl:new Set(),h:Array(24).fill(0)};days.set(d,e);}e.n++;e.p+=l[5];e.sl.add(l[1]);e.h[d_(t).getUTCHours()]++;}
+function drawXDay(LA,cv,Ds){
+  const days=new Map(); for(const l of LA){const t=cv(l[8]);if(t==null)continue;const d=db(t);let e=days.get(d);if(!e){e={t:d,n:0,p:0,sl:new Set(),h:Array(24).fill(0)};days.set(d,e);}e.n++;e.p+=l[5];e.sl.add(l[1]);e.h[d_(t).getUTCHours()]++;}
   const rows=[...days.values()].sort((a,b)=>a.t-b.t);
-  $('xDayNote').textContent=`처리일(최종작업시간) 기준 · ${state.tz}`;
-  const bars=(el,items,label,sub)=>{
+  $('xDayNote').textContent=`처리일(최종작업시간) 기준 · 일자별은 날마다 따로(누계 아님) · ${state.tz}`;
+  const bars=(el,items,label,sub,hl)=>{
     const W=Math.max(640,Math.round(el.parentElement.clientWidth||900)),H=210,pl=16,pr=16,pt=38,pb=34,by=H-pb; el.setAttribute('viewBox',`0 0 ${W} ${H}`);
-    if(!items.length){el.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle" class="ax">결품이 없습니다</text>`;return;}
+    if(!items.length||!items.some(x=>x.n)){el.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle" class="ax">결품이 없습니다</text>`;return;}
     const n=items.length,slot=(W-pl-pr)/n,bw=Math.min(40,slot*.55),mx=Math.max(1,...items.map(x=>x.n))*1.1,Y=v=>by-(by-pt)*v/mx; let g='';
     items.forEach((x,i)=>{const cx=pl+slot*(i+.5);
+      if(hl&&hl(x))g+=`<rect x="${pl+slot*i+2}" y="4" width="${slot-4}" height="${by-4}" fill="var(--accent)" fill-opacity=".07" rx="4"/>`;
       if(x.n)g+=`<rect x="${cx-bw/2}" y="${Y(x.n)}" width="${bw}" height="${by-Y(x.n)}" rx="3" fill="var(--warn)"/><text x="${cx}" y="${Y(x.n)-5}" text-anchor="middle" class="rl" style="fill:var(--fg)">${fmt(x.n)}</text>`+
         (sub&&slot>70?`<text x="${cx}" y="${Y(x.n)-19}" text-anchor="middle" class="ax">${sub(x)}</text>`:'');
       g+=`<text x="${cx}" y="${by+16}" text-anchor="middle" class="ax" style="font-weight:700">${label(x)}</text>`;});
     el.innerHTML=g+`<line x1="${pl}" x2="${W-pr}" y1="${by}" y2="${by}" stroke="var(--border)"/>`;};
-  bars($('xDay'),rows,x=>fDay(x.t),x=>`${fmt(x.p)} pcs · ${fmt(x.sl.size)}건`);
-  const last=rows.length?rows[rows.length-1]:null;
-  $('xHourT').textContent=last?`시간대별 (${fDayW(last.t)}, 결품이 있는 마지막 날)`:'시간대별';
-  bars($('xHour'),last?last.h.map((n,h)=>({n,h})):[],x=>p2(x.h),null);
+  bars($('xDay'),rows,x=>fDay(x.t),x=>`${fmt(x.p)} pcs · ${fmt(x.sl.size)}건`,x=>x.t===Ds);
+  const cur=days.get(Ds);
+  $('xHourT').textContent=`시간대별 (${fDayW(Ds)} ${state.tz})`;
+  bars($('xHour'),(cur?cur.h:Array(24).fill(0)).map((n,h)=>({n,h})),x=>p2(x.h),null,null);
 }
 ['USE','STORE'].forEach(k=>{$('sw3-'+k).onclick=()=>{state.type=k;save();renderShortage();};});
 ['pcs','rate'].forEach(k=>{$('xs-'+k).onclick=()=>{state.xs=k;renderShortage();};});
+$('xDaySel').onchange=e=>{const v=e.target.value;state.day=v==='last'?v:+v;renderShortage();};
 /* ② 당일 누적 주문·출고 차트 (두 선 사이 = 잔여, 점선 = 당일 계획) */
 let chartCtx=null;
 function drawChart(m,items,Ds,T,plan){
