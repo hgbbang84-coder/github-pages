@@ -8,7 +8,7 @@
 <title>출고 진척 현황판</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  /* Layout: 고정 헤더(제목+탭) → [실적 조회] ① CBE 출고실적(당일·누적 카드, USE+매장) ② 오늘 흐름 ③ 일자별 계획·주문·실적 ④ 미출고 관리 ⑤ 참고(접힘) / [파일 올리기] */
+  /* Layout: 고정 헤더(제목+탭) → [실적 조회] ① 블루밍턴센터 요약(당일·누적 카드, USE+매장) ② 오늘 흐름 ③ 일자별 계획·주문·실적 ④ 미출고 관리 ⑤ 참고(접힘) / [파일 올리기] */
   :root{
     --bg:#f2f4f7; --surface:#ffffff; --surface-2:#eef1f5; --border:#d9dfe7;
     --fg:#111820; --muted:#566373; --faint:#8592a2;
@@ -125,7 +125,7 @@
   .ctrl label{display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:700;color:var(--muted)}
   .ctrl .meta{font-size:.74rem;color:var(--faint);margin-left:auto}
 
-  /* ① CBE 출고실적 */
+  /* ① 블루밍턴센터 요약 */
   .cbe{margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
   .cbe-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:14px}
   .cbe-head h2{font-size:1.12rem;font-weight:900;margin-right:auto}
@@ -297,11 +297,11 @@
         <span class="meta" id="snapMeta"></span>
       </div>
 
-      <!-- ① CBE 출고실적 -->
+      <!-- ① 블루밍턴센터 요약 -->
       <div class="cbe">
         <div class="cbe-head">
-          <h2 id="rTitle">■ CBE 출고실적</h2>
-          <label>행사명 <input type="text" id="evName" maxlength="30" placeholder="예: 2차 BF"></label>
+          <h2 id="rTitle">■ 블루밍턴센터 요약</h2>
+          <label>행사명 <input type="text" id="evName" maxlength="30" placeholder="예: 블프"></label>
           <label>기간 <input type="date" id="evStart" aria-label="행사 시작일"> ~ <input type="date" id="evEnd" aria-label="행사 종료일"></label>
           <button type="button" class="btn sm" id="copyRpt">보고 표 복사</button>
           <span class="copied" id="copyMsg" role="status"></span>
@@ -631,15 +631,17 @@ function load(){let j={};try{j=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}
   if(j.plans&&typeof j.plans==='object')state.plans=j.plans; if(j.labels&&typeof j.labels==='object')state.labels=j.labels;
   state.mig=j.mig|0;
   if(state.mig<2){   // 1회: PT 기준, 11/23~11/30 행사, 계획량 채우기 (이미 입력한 값은 유지)
-    state.tz='PT'; state.start='2026-11-23'; state.end='2026-11-30'; if(!state.ev)state.ev='2차 BF';
+    state.tz='PT'; state.start='2026-11-23'; state.end='2026-11-30'; if(!state.ev)state.ev='블프';
     for(const [d,[p,l]] of Object.entries(PLAN_SEED)){const k='USE|'+d;if(!(state.plans[k]&&state.plans[k].p!=null))state.plans[k]={...(state.plans[k]||{}),p};if(!state.labels[d])state.labels[d]=l;}
     state.mig=2; save();
   }
   if(state.mig<3){   // 비어 있는 행사 기본값·계획량만 채움 (이미 입력한 값은 그대로)
-    if(!state.start)state.start='2026-11-23'; if(!state.end)state.end='2026-11-30'; if(!state.ev)state.ev='2차 BF';
+    if(!state.start)state.start='2026-11-23'; if(!state.end)state.end='2026-11-30'; if(!state.ev)state.ev='블프';
     for(const [d,[p,l]] of Object.entries(PLAN_SEED)){const k='USE|'+d;if(!(state.plans[k]&&state.plans[k].p!=null))state.plans[k]={...(state.plans[k]||{}),p};if(!state.labels[d])state.labels[d]=l;}
     state.mig=3; save();
-  }}
+  }
+  if(state.mig<4){ if(state.ev==='2차 BF')state.ev='블프'; state.mig=4; save(); }   // 행사명 표기 변경
+  }
 function save(){
   const keep={snaps:state.snaps,cur:state.cur,type:state.type,hm:state.hm,tz:state.tz,ev:state.ev,start:state.start,end:state.end,
     plans:state.plans,labels:state.labels,mig:state.mig};
@@ -766,7 +768,7 @@ function renderReport(){
   renderRef(m);
 }
 
-/* ===== ① CBE 출고실적 (당일 · 누적) ===== */
+/* ===== ① 블루밍턴센터 요약 (당일 · 누적) ===== */
 let RPT=null;
 function topNums(m,k,C){
   const {carry0,rows}=dailyRows(m[k].items,C.S,C.E,m.lastDay), r=rows.find(x=>x.t===C.Ds)||{o:0,s:0,x:0,tp:0,co:0,cs:0,cx:0,rem:carry0,crem:carry0};
@@ -780,7 +782,7 @@ function renderTop(m){
   const C=evCtx(m), ev=state.ev.trim(), u='건';
   if(document.activeElement!==$('evName'))$('evName').value=state.ev;
   $('evStart').value=dKey(C.S0); $('evEnd').value=dKey(C.E0);
-  const title=`■ CBE 출고실적(${ev?ev+' ':''}${C.pre?'행사 전':C.nth+'일차'}) _ ${C.closed?'마감':fHM(m.asof)+' 현재'}`;
+  const title=`■ 블루밍턴센터 ${ev?ev+' ':''}${C.pre?'행사 전':C.nth+'일차'} 요약 _ ${C.closed?'마감':fHM(m.asof)+' 현재'}`;
   $('rTitle').textContent=title;
   const U=topNums(m,'USE',C), r=U.r;
   const dlab=`<div class="rl r1"><b>당일</b><span>${fDayW(C.Ds)}</span></div>`, clab=`<div class="rl"><b>누적</b><span>${fDay(C.S)}~${fDay(C.Ds)}</span></div>`;
