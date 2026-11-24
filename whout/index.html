@@ -199,6 +199,29 @@
   .rbar{display:inline-flex;align-items:center;gap:8px}
   .rbar .bar{width:76px}
 
+  /* 미출고 관리: 요약 · 웨이브 */
+  .pkpi{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+  .pk{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+  .pk .l{font-size:.74rem;font-weight:800;color:var(--muted)}
+  .pk .v{font-size:1.45rem;font-weight:900;letter-spacing:-.02em;margin-top:3px}
+  .pk .v small{font-size:.76rem;font-weight:600;color:var(--muted);margin-left:3px}
+  .pk .s{font-size:.72rem;color:var(--muted);margin-top:2px}
+  .drow{display:grid;grid-template-columns:52px minmax(0,1fr) 120px;align-items:center;gap:10px;font-size:.8rem;padding:3px 0}
+  .drow .b{height:14px;border-radius:3px;background:var(--use)}
+  .drow .b.one{background:var(--warn)}
+  .drow .n{text-align:right;color:var(--muted)} .drow .n b{color:var(--fg)}
+  .wctl{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+  .wctl label{display:inline-flex;align-items:center;gap:8px;font-size:.82rem;font-weight:800}
+  .wctl input{width:6em;font-size:.95rem;font-weight:800;text-align:right}
+  .wres{margin-top:14px}
+  .wbox{border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:8px;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center}
+  .wbox .big{font-size:1.5rem;font-weight:900}
+  .wbox .it{font-size:.78rem;color:var(--muted)} .wbox .it b{display:block;font-size:1.1rem;color:var(--fg);font-weight:900}
+  .wbox .acts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .wprev{margin-top:12px;font-size:.78rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px}
+  .wprev b{color:var(--fg)}
+  @media (max-width:900px){.pkpi{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:520px){.pkpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
   /* ⑤ 참고 */
   details.ref{margin-top:34px;border-top:1px solid var(--border);padding-top:14px}
   details.ref>summary{cursor:pointer;font-size:.95rem;font-weight:800;padding:4px 0}
@@ -250,6 +273,7 @@
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" id="tab-report" data-view="report">실적 조회</button>
+      <button class="tab" role="tab" id="tab-pending" data-view="pending">미출고 관리</button>
       <button class="tab" role="tab" id="tab-upload" data-view="upload">파일 올리기</button>
     </nav>
   </div>
@@ -280,6 +304,80 @@
         <tbody id="histBody"></tbody>
       </table></div>
     </section>
+  </div>
+
+  <!-- ===== 미출고 관리 ===== -->
+  <div id="view-pending" hidden>
+    <div id="noData2" class="card" style="margin-top:22px;text-align:center;padding:40px 20px" hidden>
+      <h2 style="font-size:1.05rem;margin-bottom:6px">불러온 파일이 없습니다</h2>
+      <p style="color:var(--muted);font-size:.88rem;margin:0">파일 올리기 탭에서 WHOUT 출고 실적 엑셀을 올려주세요.</p>
+    </div>
+    <div id="pend" hidden>
+      <section style="margin-top:18px">
+        <div class="shead"><h2>미처리 물량 요약</h2><span class="note" id="pNote"></span></div>
+        <div class="pkpi" id="pSum"></div>
+        <div class="card" style="margin-top:12px">
+          <div class="shead" style="margin-bottom:8px"><h3>SKU 수별 미처리 전표</h3><span class="note">전표 하나에 남은 SKU가 몇 개인지</span></div>
+          <div id="pDist"></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="shead"><h2>웨이브 추천</h2><span class="note">지정한 SKU 수 안에서 미처리 SKU가 모두 들어가는 전표를 최대한 많이 묶음 · USE만 · 사은품 포함</span></div>
+        <div class="card">
+          <div class="wctl">
+            <label>SKU 수 <input type="number" id="wK" min="1" max="2000" step="1" value="50"></label>
+            <button type="button" class="btn" id="wRun">계산</button>
+            <button type="button" class="btn line" id="wNext">이 웨이브 확정 → 다음 웨이브</button>
+            <button type="button" class="btn sm danger" id="wReset">웨이브 초기화</button>
+          </div>
+          <div id="wRes" class="wres"></div>
+          <div id="wPrev" class="wprev"></div>
+        </div>
+        <div class="sub-sec" id="wHistBox" hidden>
+          <div class="shead"><h3>확정한 웨이브</h3><span class="note">확정한 전표는 다음 계산에서 빠집니다 · 새로고침하면 초기화</span></div>
+          <div class="tbl"><table>
+            <thead><tr><th>웨이브</th><th>SKU 지정</th><th>건</th><th>pcs</th><th>좌수(OL)</th><th>SKU (사은품)</th><th></th></tr></thead>
+            <tbody id="wHist"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <div class="typesw">
+        <div class="switch" role="group" aria-label="유형 선택">
+          <button type="button" id="sw2-USE" data-type="USE">USE · 건</button>
+          <button type="button" id="sw2-STORE" data-type="STORE">매장 · pcs</button>
+        </div>
+        <span class="note">아래 미출고 현황이 선택한 유형으로 바뀝니다</span>
+      </div>
+      <!-- 미출고 현황 -->
+      <section style="margin-top:16px">
+        <div class="shead"><h2>미출고 현황</h2><span class="note" id="fifoNote"></span></div>
+        <div class="fifo" id="fifoCards"></div>
+        <div class="sub-sec">
+          <div class="shead"><h3>일자별 잔여 흐름</h3><span class="note">처리일 기준 · 전일 잔여 + 주문 − 출고 − 결품 = 잔여 · 출고는 그날 실제 처리한 수량(상단 카드와 같음)</span></div>
+          <div class="tbl"><table>
+            <thead><tr><th>일자</th><th>전일 잔여</th><th>+ 주문</th><th>− 출고</th><th>− 결품(고객취소)</th><th>= 잔여</th><th>처리율</th></tr></thead>
+            <tbody id="ledBody"></tbody>
+          </table></div>
+        </div>
+        <div class="sub-sec">
+          <div class="shead"><h3>수신일별 현재 잔여</h3><span class="note">수신일 기준 · 그날 들어온 주문이 지금까지 어떻게 처리됐는지 · 오래된 날짜의 잔여부터 0이 돼야 선입선출</span></div>
+          <div class="tbl"><table>
+            <thead><tr><th>수신일</th><th>주문</th><th>그중 출고</th><th>그중 결품(고객취소)</th><th>현재 잔여</th><th>장기 잔여</th><th>처리율</th></tr></thead>
+            <tbody id="rcvBody"></tbody>
+          </table></div>
+        </div>
+        <div class="sub-sec">
+          <div class="shead"><h3>장기 잔여 목록 (D+2 이상)</h3><span class="note" id="longNote"></span></div>
+          <div class="tbl scroll"><table>
+            <thead><tr><th>전표번호</th><th>거래처코드</th><th>TCS 수신</th><th>경과</th><th>OL</th><th>처리 OL</th><th>주문 pcs</th><th>잔여 pcs</th><th>상태</th></tr></thead>
+            <tbody id="longBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+    </div>
   </div>
 
   <!-- ===== 실적 조회 ===== -->
@@ -318,7 +416,7 @@
           <button type="button" id="sw-USE" data-type="USE">USE · 건</button>
           <button type="button" id="sw-STORE" data-type="STORE">매장 · pcs</button>
         </div>
-        <span class="note">아래 ②~④가 선택한 유형으로 바뀝니다</span>
+        <span class="note">아래 ②~③이 선택한 유형으로 바뀝니다</span>
       </div>
 
       <!-- ② 오늘 흐름 -->
@@ -344,33 +442,6 @@
           <tbody id="dBody"></tbody>
         </table></div>
         <div class="cbe-foot"><span>계획 · 구분 칸은 눌러서 입력 · 엑셀에서 한 열을 복사해 첫 칸에 붙여넣으면 아래로 채워집니다</span><span id="planNote"></span></div>
-      </section>
-
-      <!-- ④ 미출고 관리 -->
-      <section>
-        <div class="shead"><h2><span class="num-b">④</span>미출고 관리</h2><span class="note" id="fifoNote"></span></div>
-        <div class="fifo" id="fifoCards"></div>
-        <div class="sub-sec">
-          <div class="shead"><h3>일자별 잔여 흐름</h3><span class="note">처리일 기준 · 전일 잔여 + 주문 − 출고 − 결품 = 잔여 · 출고는 그날 실제 처리한 수량(상단 카드와 같음)</span></div>
-          <div class="tbl"><table>
-            <thead><tr><th>일자</th><th>전일 잔여</th><th>+ 주문</th><th>− 출고</th><th>− 결품(고객취소)</th><th>= 잔여</th><th>처리율</th></tr></thead>
-            <tbody id="ledBody"></tbody>
-          </table></div>
-        </div>
-        <div class="sub-sec">
-          <div class="shead"><h3>수신일별 현재 잔여</h3><span class="note">수신일 기준 · 그날 들어온 주문이 지금까지 어떻게 처리됐는지 · 오래된 날짜의 잔여부터 0이 돼야 선입선출</span></div>
-          <div class="tbl"><table>
-            <thead><tr><th>수신일</th><th>주문</th><th>그중 출고</th><th>그중 결품(고객취소)</th><th>현재 잔여</th><th>장기 잔여</th><th>처리율</th></tr></thead>
-            <tbody id="rcvBody"></tbody>
-          </table></div>
-        </div>
-        <div class="sub-sec">
-          <div class="shead"><h3>장기 잔여 목록 (D+2 이상)</h3><span class="note" id="longNote"></span></div>
-          <div class="tbl scroll"><table>
-            <thead><tr><th>전표번호</th><th>거래처코드</th><th>TCS 수신</th><th>경과</th><th>OL</th><th>처리 OL</th><th>주문 pcs</th><th>잔여 pcs</th><th>상태</th></tr></thead>
-            <tbody id="longBody"></tbody>
-          </table></div>
-        </div>
       </section>
 
       <!-- ⑤ 참고 -->
@@ -448,7 +519,7 @@ function colIdx(rows){
   if(hi<0)throw new Error("'센터' 헤더 행을 찾지 못했습니다. WHOUT 출고 실적 원본 엑셀인지 확인해 주세요.");
   const h=rows[hi].map(v=>String(v??'').trim()), sub=(rows[hi+1]||[]).map(v=>String(v??'').trim());
   const f=n=>{const i=h.indexOf(n);if(i<0)throw new Error(`'${n}' 열을 찾지 못했습니다.`);return i;};
-  const base={code:f('거래처코드'),slip:f('전표번호'),work:f('최종작업시간'),tcs:f('TCS수신시간'),odate:h.indexOf('주문일자'),sku:h.indexOf('상품코드')};
+  const base={code:f('거래처코드'),slip:f('전표번호'),work:f('최종작업시간'),tcs:f('TCS수신시간'),odate:h.indexOf('주문일자'),sku:h.indexOf('상품코드'),name:h.indexOf('상품명')};
   // 형식 1: 1단 헤더 ('출고량 총낱개', '원주문량1 총낱개', '결품량 총낱개')
   const s1=h.findIndex(x=>/^출고량\s*총낱개$/.test(x)), o1=h.findIndex(x=>/^원주문량\d*\s*총낱개$/.test(x));
   if(s1>=0&&o1>=0){let k=h.findIndex(x=>/결품/.test(x)&&/총낱개/.test(x));if(k<0)k=h.findIndex(x=>/결품/.test(x));
@@ -475,6 +546,9 @@ function aggregate(rows,fname){
   const dayN=(t,tz)=>Math.floor(tzConv(t,tz)/DAY);
   const skAdd=(T,sku,kind,t)=>{let e=sk[T].get(sku);if(!e){e={rP:new Set(),sP:new Set(),rK:new Set(),sK:new Set()};sk[T].set(sku,e);}
     e[kind+'P'].add(dayN(t,'PT'));e[kind+'K'].add(dayN(t,'KST'));};
+  // 웨이브 추천용: USE 미처리 전표별 미처리 SKU (잔량 = 원주문 − 결품 − 출고 > 0 인 행)
+  const wSku=new Map(), wCodes=[], wGwp=[], wOrd=new Map();
+  const wIdx=(code,name)=>{let i=wSku.get(code);if(i==null){i=wCodes.length;wSku.set(code,i);wCodes.push(code);wGwp.push(/^\s*\(GWP\)/i.test(String(name||''))?1:0);}return i;};
   let n=0,noTcs=0; const odates=new Set();
   for(let i=ix.start;i<rows.length;i++){
     const r=rows[i]; if(!Array.isArray(r))continue;
@@ -495,6 +569,9 @@ function aggregate(rows,fname){
     if(!use&&tcs!=null){   // 매장: pcs 단위, 행 묶음 [코드, 수신분, 처리분, 주문, 출고, 완결, 행수, 결품]
       const c=ci(code),tm=Math.floor(tcs/MIN),em=ev==null?-1:Math.floor(ev/MIN),k=c+','+tm+','+em;
       let a=ln.get(k); if(!a){a=[c,tm,em,0,0,0,0,0];ln.set(k,a);} a[3]+=ord;a[4]+=shp;a[5]+=done;a[6]++;a[7]+=xQ;}
+    if(use&&tcs!=null&&ord-done>0&&ix.sku>=0){const code=String(r[ix.sku]??'').trim();
+      if(code){let w=wOrd.get(slip);if(!w){w={tm:Math.floor(tcs/MIN),s:[],p:0,l:0};wOrd.set(slip,w);}
+        w.s.push(wIdx(code,ix.name>=0?r[ix.name]:''));w.p+=ord-done;w.l++;}}
     if(ix.sku>=0){const sku=String(r[ix.sku]??'').trim(), T=use?'U':'S';
       if(sku){ if(tcs!=null)skAdd(T,sku,'r',tcs); if(shp>0&&ev!=null)skAdd(T,sku,'s',ev); if(!closed)skPend[T].add(sku); }}
   }
@@ -521,7 +598,8 @@ function aggregate(rows,fname){
   return {v:4,id:String(fname)+'|'+asof,fname:String(fname),asof,savedAt:Date.now(),rows:n,noTcs,
     odates:[...odates].sort(),hasShort:ix.short>=0,codes,
     U:{ev:[...uev.values()],lc:ulc.slice(0,3000)},S:{ord:so,ln:[...ln.values()],lc:slc.slice(0,3000)},
-    sku:ix.sku>=0?{bP:isFinite(bP)?bP:0,bK:isFinite(bK)?bK:0,U:skuOut('U'),S:skuOut('S')}:null};
+    sku:ix.sku>=0?{bP:isFinite(bP)?bP:0,bK:isFinite(bK)?bK:0,U:skuOut('U'),S:skuOut('S')}:null,
+    W:ix.sku>=0?{sku:wCodes,g:wGwp,o:[...wOrd.entries()].sort((a,b)=>a[1].tm-b[1].tm).map(([sl,w])=>[sl,w.tm,[...new Set(w.s)],w.p,w.l])}:null};
 }
 /* ===== CORE-END ===== */
 
@@ -594,6 +672,31 @@ function oldestPend(items,isLong,long){let o=null;for(const x of items)if(x.pq>0
 function skuCount(masks,base,d0,d1){
   let bits=0; for(let d=d0;d<=d1;d++){const k=d-base;if(k>=0&&k<31)bits|=(1<<k);}
   if(!bits)return 0; let c=0; for(const x of masks)if(x&bits)c++; return c;
+}
+// 웨이브 추천: SKU K개 안에서 미처리 SKU가 모두 들어가는 전표를 최대한 많이 (탐욕법)
+//   매 단계, 바로 완결되는 전표(남은 SKU 1개)는 1점, 남은 SKU m개 전표는 1/m² 점으로 가장 점수 높은 SKU를 추가
+function waveGreedy(W,K,ex){
+  const O=W.o, by=new Map(), miss=new Int32Array(O.length);
+  O.forEach((o,i)=>{if(ex&&ex.has(i))return; miss[i]=o[2].length; for(const k of o[2]){let a=by.get(k);if(!a){a=[];by.set(k,a);}a.push(i);}});
+  const chosen=new Set(), done=[];
+  for(let step=0;step<K;step++){
+    let best=-1,bs=0;
+    for(const [k,a] of by){if(chosen.has(k))continue; let sc=0; for(const i of a){const m=miss[i]; if(m>0)sc+=m===1?1:1/(m*m);} if(sc>bs){bs=sc;best=k;}}
+    if(best<0)break;
+    chosen.add(best); for(const i of by.get(best)){miss[i]--; if(miss[i]===0)done.push(i);}
+  }
+  const used=new Set(); let pcs=0,ol=0;
+  for(const i of done){pcs+=O[i][3];ol+=O[i][4];for(const k of O[i][2])used.add(k);}
+  let gwp=0; for(const k of used)if(W.g[k])gwp++;
+  return {idx:done.sort((a,b)=>a-b),n:done.length,pcs,ol,sku:used.size,gwp,K};
+}
+// 미처리 물량 요약 (USE): 건·pcs·좌수(OL)·SKU·SKU 수별 분포·1SKU 주문
+function pendSummary(W,ex){
+  let n=0,pcs=0,ol=0; const sk=new Set(), dist=new Map(); let n1=0,p1=0;
+  W.o.forEach((o,i)=>{if(ex&&ex.has(i))return; n++;pcs+=o[3];ol+=o[4];for(const k of o[2])sk.add(k);
+    const c=o[2].length, b=c>=10?10:c>=6?6:c; dist.set(b,(dist.get(b)||0)+1); if(c===1){n1++;p1+=o[3];}});
+  let gwp=0; for(const k of sk)if(W.g[k])gwp++;
+  return {n,pcs,ol,sku:sk.size,gwp,dist,n1,p1};
 }
 /* ===== MODEL-END ===== */
 
@@ -673,9 +776,9 @@ function setHdr(){const s=curSnap();
   $('hdrAsof').innerHTML=s?`<b>${fT(tzConv(s.asof,state.tz))} ${state.tz}</b> 기준`:'';}
 function route(){
   const h=location.hash.slice(1);
-  const v=(h==='upload'||h==='report')?h:(state.snaps.length?'report':'upload');
-  for(const k of ['upload','report']){$('view-'+k).hidden=k!==v;$('tab-'+k).setAttribute('aria-selected',String(k===v));}
-  if(v==='upload')renderUpload();else renderReport();
+  const v=['upload','report','pending'].includes(h)?h:(state.snaps.length?'report':'upload');
+  for(const k of ['upload','report','pending']){$('view-'+k).hidden=k!==v;$('tab-'+k).setAttribute('aria-selected',String(k===v));}
+  if(v==='upload')renderUpload();else if(v==='pending')renderPending();else renderReport();
   setHdr();
 }
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{location.hash=b.dataset.view;route();});
@@ -755,7 +858,7 @@ $('daySel').onchange=e=>{const v=e.target.value;state.day=v==='last'?v:+v;render
   state.tz=z; save();
   const s=curSnap(); if(keep&&s){const m=model(s);const hit=m.days.find(d=>dKey(d)===keep);state.day=hit!=null?hit:'last';}
   route();});
-['USE','STORE'].forEach(k=>$('sw-'+k).onclick=()=>{state.type=k;save();renderTypeViews(curSnap());});
+['USE','STORE'].forEach(k=>{$('sw-'+k).onclick=$('sw2-'+k).onclick=()=>{state.type=k;save();renderTypeViews(curSnap());};});
 ['pend','ord','ship'].forEach(k=>$('hm-'+k).onclick=()=>{state.hm=k;save();const s=curSnap();if(s)renderHeat(model(s),state.type);});
 
 function renderReport(){
@@ -837,7 +940,7 @@ $('evEnd').addEventListener('change',e=>{state.end=e.target.value||null;save();r
 function renderTypeViews(s){
   if(!s)return;
   const k=state.type, m=model(s), T=TYPES[k], C=evCtx(m);
-  ['USE','STORE'].forEach(x=>$('sw-'+x).setAttribute('aria-pressed',String(x===k)));
+  ['USE','STORE'].forEach(x=>{$('sw-'+x).setAttribute('aria-pressed',String(x===k));$('sw2-'+x).setAttribute('aria-pressed',String(x===k));});
   const plan=planOf(k,C.Ds);
   $('chartNote').textContent=`${T.name} · ${T.u} · ${fDayW(C.Ds)} 00:00~${C.closed?'24:00':fHM(m.asof)} ${state.tz}`;
   $('chartLegend').innerHTML=`<span><i class="sq" style="--c:color-mix(in srgb,var(--faint) 30%,transparent)"></i>이월 (00:00 기준 잔여)</span><span><i style="--c:var(--oline)"></i>이월 + 당일 주문</span><span><i style="--c:var(--act)"></i>출고 + 결품</span><span><i class="band"></i>두 선 사이 = 잔여</span>`+
@@ -1022,6 +1125,65 @@ function renderHeat(m,k){
   $('heat').innerHTML=h+'</tbody>';
 }
 
+
+/* ===== 미출고 관리 탭: 미처리 요약 · 웨이브 추천 ===== */
+let WV={id:null,ex:new Set(),hist:[],cur:null};
+function renderPending(){
+  const s=curSnap();
+  $('noData2').hidden=!!s; $('pend').hidden=!s; if(!s)return;
+  renderReport();               // 미출고 현황(일자별 흐름·수신일별·장기 잔여)은 실적 조회와 같은 계산을 씀
+  renderWave(s);
+}
+const pk=(l,v,u,sub)=>`<div class="pk"><div class="l">${l}</div><div class="v">${v}${u?`<small>${u}</small>`:''}</div><div class="s">${sub||'&nbsp;'}</div></div>`;
+function renderWave(s){
+  if(!s.W){$('pSum').innerHTML=`<div class="pk" style="grid-column:1/-1"><div class="s">이 추출본에는 전표별 SKU 정보가 없습니다. 파일을 다시 올리면 미처리 요약과 웨이브 추천이 표시됩니다.</div></div>`;
+    $('pDist').innerHTML='';$('wRes').innerHTML='';$('wPrev').innerHTML='';$('wHistBox').hidden=true;return;}
+  if(WV.id!==s.id)WV={id:s.id,ex:new Set(),hist:[],cur:null};
+  const W=s.W, P=pendSummary(W), asof=tzConv(s.asof,state.tz);
+  $('pNote').textContent=`USE · ${fT(asof)} ${state.tz} 현재 · 원주문 − 결품 − 출고 > 0 인 전표`;
+  $('pSum').innerHTML=pk('미처리 건',fmt(P.n),'건','')+pk('pcs',fmt(P.pcs),'pcs',`건당 ${P.n?fmt1(P.pcs/P.n):'—'}`)+
+    pk('좌수 (OL)',fmt(P.ol),'',`건당 ${P.n?fmt1(P.ol/P.n):'—'}`)+pk('SKU',fmt(P.sku),'',`사은품 ${P.gwp}개 포함`)+
+    pk('건당 SKU',P.n?fmt1(P.ol/P.n):'—','','')+
+    pk('1SKU 주문',fmt(P.n1),'건',`건 ${pctT(P.n1,P.n)} · pcs ${pctT(P.p1,P.pcs)}`);
+  const lab={1:'1 SKU',2:'2',3:'3',4:'4',5:'5',6:'6~9',10:'10+'}, mx=Math.max(1,...P.dist.values());
+  $('pDist').innerHTML=[1,2,3,4,5,6,10].map(b=>{const c=P.dist.get(b)||0;
+    return `<div class="drow"><span>${lab[b]}</span><span class="b ${b===1?'one':''}" style="width:${Math.max(c?1:0,c/mx*100)}%"></span><span class="n"><b>${fmt(c)}</b>건 · ${pctT(c,P.n)}</span></div>`;}).join('');
+  // 결과
+  const r=WV.cur;
+  $('wRes').innerHTML=r?`<div class="wbox"><div><div class="it">웨이브 ${r.no} · SKU ${fmt(r.K)}개 지정</div><div class="big">${fmt(r.n)}건</div></div>
+      <div class="it">pcs<b>${fmt(r.pcs)}</b></div><div class="it">좌수 (OL)<b>${fmt(r.ol)}</b></div>
+      <div class="it">SKU<b>${fmt(r.sku)}<small style="font-size:.72rem;color:var(--muted);font-weight:600"> (사은품 ${r.gwp}개 포함)</small></b></div>
+      <div class="it">건당 pcs<b>${r.n?fmt1(r.pcs/r.n):'—'}</b></div>
+      <div class="acts"><button type="button" class="btn sm" data-dl="cur">전표번호 다운로드 (.txt)</button><button type="button" class="btn sm line" data-cp="cur">복사</button><span class="copied" id="wMsg" role="status"></span></div></div>`
+    :`<div class="it" style="font-size:.84rem;color:var(--muted)">SKU 수를 정하고 <b>계산</b>을 누르세요. 남은 미처리 ${fmt(P.n-WV.ex.size)}건에서 묶습니다.</div>`;
+  // SKU 수별 예상 (확정한 웨이브 제외)
+  $('wPrev').innerHTML='<span>SKU 수별 예상</span>'+[10,30,50,100,200].map(k=>{const x=waveGreedy(W,k,WV.ex);return `<span>${k} → <b>${fmt(x.n)}건</b> · ${fmt(x.pcs)} pcs</span>`;}).join('');
+  // 확정 이력
+  $('wHistBox').hidden=!WV.hist.length;
+  $('wHist').innerHTML=WV.hist.map((h,i)=>`<tr><td><b>${h.no}차</b></td><td>${fmt(h.K)}</td><td>${fmt(h.n)}</td><td>${fmt(h.pcs)}</td><td>${fmt(h.ol)}</td><td>${fmt(h.sku)} (${h.gwp})</td>
+    <td><button type="button" class="btn sm line" data-dl="${i}">다운로드</button> <button type="button" class="btn sm line" data-cp="${i}">복사</button></td></tr>`).join('')
+    +(WV.hist.length?`<tr class="tot"><td>합계</td><td></td><td>${fmt(WV.hist.reduce((a,h)=>a+h.n,0))}</td><td>${fmt(WV.hist.reduce((a,h)=>a+h.pcs,0))}</td><td>${fmt(WV.hist.reduce((a,h)=>a+h.ol,0))}</td><td></td><td></td></tr>`:'');
+}
+const wK=()=>Math.max(1,Math.min(2000,Math.round(+$('wK').value||50)));
+function wRun(){const s=curSnap();if(!s||!s.W)return;const r=waveGreedy(s.W,wK(),WV.ex);r.no=WV.hist.length+1;WV.cur=r;renderWave(s);}
+$('wRun').onclick=wRun;
+$('wK').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();wRun();}});
+$('wNext').onclick=()=>{const s=curSnap();if(!s||!s.W)return; if(!WV.cur)wRun();
+  const r=WV.cur; if(!r||!r.n)return; WV.hist.push(r); for(const i of r.idx)WV.ex.add(i); WV.cur=null; wRun();};
+$('wReset').onclick=e=>{const b=e.currentTarget;
+  if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='초기화 확인';setTimeout(()=>{b.classList.remove('armed');b.textContent='웨이브 초기화';},3000);return;}
+  b.classList.remove('armed');b.textContent='웨이브 초기화';WV={id:WV.id,ex:new Set(),hist:[],cur:null};renderWave(curSnap());};
+function waveFile(r){const s=curSnap(), t=tzConv(s.asof,state.tz);
+  return {name:`wave${r.no}_SKU${r.K}_${r.n}건_${p2(d_(t).getUTCMonth()+1)}${p2(d_(t).getUTCDate())}-${p2(d_(t).getUTCHours())}${p2(d_(t).getUTCMinutes())}${state.tz}.txt`,
+    text:r.idx.map(i=>s.W.o[i][0]).join('\r\n')+'\r\n'};}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-dl],[data-cp]'); if(!b||!$('view-pending').contains(b))return;
+  const key=b.dataset.dl??b.dataset.cp, r=key==='cur'?WV.cur:WV.hist[+key]; if(!r)return; const f=waveFile(r);
+  if(b.dataset.dl!=null){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([f.text],{type:'text/plain;charset=utf-8'}));
+    a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+    if($('wMsg'))$('wMsg').textContent=`${f.name} 저장 · 안 받아지면 복사를 쓰세요`;}
+  else{copyText(f.text,$('wMsg')?'wMsg':'copyMsg2',null);}
+});
 /* ② 당일 누적 주문·출고 차트 (두 선 사이 = 잔여, 점선 = 당일 계획) */
 let chartCtx=null;
 function drawChart(m,items,Ds,T,plan){
