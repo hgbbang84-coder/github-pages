@@ -355,14 +355,14 @@
         <div class="shead"><h2>미출고 현황</h2><span class="note" id="fifoNote"></span></div>
         <div class="fifo" id="fifoCards"></div>
         <div class="sub-sec">
-          <div class="shead"><h3>일자별 잔여 흐름</h3><span class="note">처리일 기준 · 전일 잔여 + 주문 − 출고 − 결품 = 잔여 · 출고는 그날 실제 처리한 수량(상단 카드와 같음)</span></div>
+          <div class="shead"><h3>일자별 잔여 흐름</h3><span class="note">행사 기간 · 처리일 기준 · 전일 잔여 + 주문 − 출고 − 결품 = 잔여 · 행사 전 수신분은 첫날 전일 잔여(이월)로 합침</span></div>
           <div class="tbl"><table>
             <thead><tr><th>일자</th><th>전일 잔여</th><th>+ 주문</th><th>− 출고</th><th>− 결품(고객취소)</th><th>= 잔여</th><th>처리율</th></tr></thead>
             <tbody id="ledBody"></tbody>
           </table></div>
         </div>
         <div class="sub-sec">
-          <div class="shead"><h3>수신일별 현재 잔여</h3><span class="note">수신일 기준 · 그날 들어온 주문이 지금까지 어떻게 처리됐는지 · 오래된 날짜의 잔여부터 0이 돼야 선입선출</span></div>
+          <div class="shead"><h3>수신일별 현재 잔여</h3><span class="note">잔여가 남아 있는 수신일만 · 그날 들어온 주문이 지금까지 어떻게 처리됐는지 · 오래된 날짜부터 0이 돼야 선입선출</span></div>
           <div class="tbl"><table>
             <thead><tr><th>수신일</th><th>주문</th><th>그중 출고</th><th>그중 결품(고객취소)</th><th>현재 잔여</th><th>장기 잔여</th><th>처리율</th></tr></thead>
             <tbody id="rcvBody"></tbody>
@@ -1049,20 +1049,21 @@ function renderFifo(m,k,C){
   // 일자별 잔여 흐름 (처리일 기준): 전일 잔여 + 주문 − 출고 − 결품 = 잔여
   if(!m.days.length)$('ledBody').innerHTML=`<tr><td colspan="7" class="empty">주문이 없습니다</td></tr>`;
   else{
-    const LG=dailyRows(items,m.days[0],m.maxDay,m.lastDay); let prev=LG.carry0;
+    const LG=dailyRows(items,C.S,Math.max(m.maxDay,C.S),m.lastDay); let prev=LG.carry0;
     const lr=LG.rows.map(r=>{const o={...r,prev};prev=r.rem;return o;});
     const sum=lr.reduce((a,r)=>({o:a.o+r.o,s:a.s+r.s,x:a.x+r.x}),{o:0,s:0,x:0}), endRem=lr.length?lr[lr.length-1].rem:LG.carry0;
     const pr=(d,b)=>{const p=pct(d,b);return `<span class="rbar"><span class="bar" style="--c:${p>=95?'var(--good)':p>0?'var(--warn)':'var(--crit)'}"><i style="width:${Math.min(p,100)}%"></i></span>${p.toFixed(0)}%</span>`;};
     $('ledBody').innerHTML=[...lr].reverse().map(r=>{const ok=r.prev+r.o-r.s-r.x===r.rem;
-      return `<tr class="${r.t===C.Ds?'today':''} ${r.t<C.S0?'pre':''}"><td><b>${fDayW(r.t)}</b>${r.t<C.S0?' <span class="pill mute">행사 전</span>':''}${r.fut?' <span class="pill warn">내일 출고 대상</span>':''}</td>
+      return `<tr class="${r.t===C.Ds?'today':''} ${r.t<C.S0?'pre':''}"><td><b>${fDayW(r.t)}</b>${r.t===C.S&&LG.carry0?' <span class="pill mute">전일 잔여 = 행사 전 이월</span>':''}${r.fut?' <span class="pill warn">내일 출고 대상</span>':''}</td>
         <td>${fmt(r.prev)}</td><td>${fmt(r.o)}</td><td>${fmt(r.s)}</td><td>${r.x?fmt(r.x):'—'}</td>
         <td class="${r.rem?'crit':''}">${fmt(r.rem)}${ok?'':' ⚠'}</td><td>${pr(r.s+r.x,r.prev+r.o)}</td></tr>`;}).join('')
-      +`<tr class="tot"><td>합계 (${fDay(m.days[0])}~)</td><td>${fmt(LG.carry0)}</td><td>${fmt(sum.o)}</td><td>${fmt(sum.s)}</td><td>${fmt(sum.x)}</td><td class="crit">${fmt(endRem)}</td><td>${pr(sum.s+sum.x,LG.carry0+sum.o)}</td></tr>`;
+      +`<tr class="tot"><td>합계 (${fDay(C.S)}~)</td><td>${fmt(LG.carry0)}</td><td>${fmt(sum.o)}</td><td>${fmt(sum.s)}</td><td>${fmt(sum.x)}</td><td class="crit">${fmt(endRem)}</td><td>${pr(sum.s+sum.x,LG.carry0+sum.o)}</td></tr>`;
   }
   if(!D.rows.length)$('rcvBody').innerHTML=`<tr><td colspan="7" class="empty">주문이 없습니다</td></tr>`;
   else{
-    const tot=D.rows.reduce((x,r)=>({ord:x.ord+r.ord,ship:x.ship+r.ship,xq:x.xq+r.xq,pend:x.pend+r.pend,long:x.long+r.long}),{ord:0,ship:0,xq:0,pend:0,long:0});
-    $('rcvBody').innerHTML=[...D.rows].reverse().map(r=>bRow(r,D.first,`<b>${fDayW(r.t)}</b> <span style="color:var(--faint);font-size:.74rem">D+${Math.round((m.lastDay-r.t)/DAY)}</span>${r.t<C.S0?' <span class="pill mute">이월</span>':''}`,r.t<C.S0?'pre':'')).join('')
+    const RR=D.rows.filter(r=>r.pend>0);
+    const tot=RR.reduce((x,r)=>({ord:x.ord+r.ord,ship:x.ship+r.ship,xq:x.xq+r.xq,pend:x.pend+r.pend,long:x.long+r.long}),{ord:0,ship:0,xq:0,pend:0,long:0});
+    $('rcvBody').innerHTML=(RR.length?'':`<tr><td colspan="7" class="empty">남은 잔여가 없습니다</td></tr>`)+[...RR].reverse().map(r=>bRow(r,D.first,`<b>${fDayW(r.t)}</b> <span style="color:var(--faint);font-size:.74rem">D+${Math.round((m.lastDay-r.t)/DAY)}</span>${r.t<C.S0?' <span class="pill mute">이월</span>':''}`,r.t<C.S0?'pre':'')).join('')
       +`<tr class="tot"><td>합계</td><td>${fmt(tot.ord)}</td><td>${fmt(tot.ship)}</td><td>${fmt(tot.xq)}</td><td class="crit">${fmt(tot.pend)}</td><td class="${tot.long?'crit':''}">${fmt(tot.long)}</td><td>${rateCell(tot)}</td></tr>`;
   }
   $('hourBody').innerHTML=H.rows.length?[...H.rows].reverse().map(r=>bRow(r,H.first,fH(r.t))).join(''):`<tr><td colspan="7" class="empty">주문이 없습니다</td></tr>`;
@@ -1156,14 +1157,14 @@ function renderWave(s){
       <div class="it">pcs<b>${fmt(r.pcs)}</b></div><div class="it">좌수 (OL)<b>${fmt(r.ol)}</b></div>
       <div class="it">SKU<b>${fmt(r.sku)}<small style="font-size:.72rem;color:var(--muted);font-weight:600"> (사은품 ${r.gwp}개 포함)</small></b></div>
       <div class="it">건당 pcs<b>${r.n?fmt1(r.pcs/r.n):'—'}</b></div>
-      <div class="acts"><button type="button" class="btn sm" data-dl="cur">전표번호 다운로드 (.txt)</button><button type="button" class="btn sm line" data-cp="cur">복사</button><span class="copied" id="wMsg" role="status"></span></div></div>`
+      <div class="acts"><button type="button" class="btn sm" data-dl="cur">전표번호 다운로드 (.txt)</button><button type="button" class="btn sm line" data-cp="cur">복사</button><button type="button" class="btn sm line" data-ls="cur">목록 보기</button><span class="copied" id="wMsg" role="status"></span></div></div><div id="wList" hidden></div>`
     :`<div class="it" style="font-size:.84rem;color:var(--muted)">SKU 수를 정하고 <b>계산</b>을 누르세요. 남은 미처리 ${fmt(P.n-WV.ex.size)}건에서 묶습니다.</div>`;
   // SKU 수별 예상 (확정한 웨이브 제외)
   $('wPrev').innerHTML='<span>SKU 수별 예상</span>'+[10,30,50,100,200].map(k=>{const x=waveGreedy(W,k,WV.ex);return `<span>${k} → <b>${fmt(x.n)}건</b> · ${fmt(x.pcs)} pcs</span>`;}).join('');
   // 확정 이력
   $('wHistBox').hidden=!WV.hist.length;
   $('wHist').innerHTML=WV.hist.map((h,i)=>`<tr><td><b>${h.no}차</b></td><td>${fmt(h.K)}</td><td>${fmt(h.n)}</td><td>${fmt(h.pcs)}</td><td>${fmt(h.ol)}</td><td>${fmt(h.sku)} (${h.gwp})</td>
-    <td><button type="button" class="btn sm line" data-dl="${i}">다운로드</button> <button type="button" class="btn sm line" data-cp="${i}">복사</button></td></tr>`).join('')
+    <td><button type="button" class="btn sm line" data-dl="${i}">다운로드</button> <button type="button" class="btn sm line" data-cp="${i}">복사</button> <button type="button" class="btn sm line" data-ls="${i}">목록</button></td></tr>`).join('')
     +(WV.hist.length?`<tr class="tot"><td>합계</td><td></td><td>${fmt(WV.hist.reduce((a,h)=>a+h.n,0))}</td><td>${fmt(WV.hist.reduce((a,h)=>a+h.pcs,0))}</td><td>${fmt(WV.hist.reduce((a,h)=>a+h.ol,0))}</td><td></td><td></td></tr>`:'');
 }
 const wK=()=>Math.max(1,Math.min(2000,Math.round(+$('wK').value||50)));
@@ -1178,10 +1179,21 @@ $('wReset').onclick=e=>{const b=e.currentTarget;
 function waveFile(r){const s=curSnap(), t=tzConv(s.asof,state.tz);
   return {name:`wave${r.no}_SKU${r.K}_${r.n}건_${p2(d_(t).getUTCMonth()+1)}${p2(d_(t).getUTCDate())}-${p2(d_(t).getUTCHours())}${p2(d_(t).getUTCMinutes())}${state.tz}.txt`,
     text:r.idx.map(i=>s.W.o[i][0]).join('\r\n')+'\r\n'};}
+// 다운로드가 막힌 환경 대비: 전표번호를 텍스트 칸에 펼쳐 바로 선택
+function showList(r,f){
+  let box=$('wList'); if(!box){box=document.createElement('div');box.id='wList';$('wRes').appendChild(box);}
+  box.hidden=false;
+  box.innerHTML=`<div class="shead" style="margin:12px 0 6px"><h3>${r.no}차 웨이브 전표번호 ${fmt(r.n)}건</h3><span class="note">칸을 누르면 전체 선택됩니다 · Ctrl+C(⌘C)로 복사</span>
+    <button type="button" class="btn sm line push" id="wListClose">닫기</button></div>
+    <textarea id="wListTa" readonly rows="10" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:.82rem;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--fg)"></textarea>`;
+  const ta=$('wListTa'); ta.value=f.text.trim(); ta.addEventListener('focus',()=>ta.select()); ta.focus(); ta.select();
+  $('wListClose').onclick=()=>{box.hidden=true;};
+}
 document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-dl],[data-cp]'); if(!b||!$('view-pending').contains(b))return;
-  const key=b.dataset.dl??b.dataset.cp, r=key==='cur'?WV.cur:WV.hist[+key]; if(!r)return; const f=waveFile(r);
+  const b=e.target.closest('[data-dl],[data-cp],[data-ls]'); if(!b||!$('view-pending').contains(b))return;
+  const key=b.dataset.dl??b.dataset.cp??b.dataset.ls, r=key==='cur'?WV.cur:WV.hist[+key]; if(!r)return; const f=waveFile(r);
   const msg=t=>{if($('wMsg'))$('wMsg').textContent=t;};
+  if(b.dataset.ls!=null){showList(r,f);return;}
   if(b.dataset.dl!=null){
     if(DLC){   // claude.ai: 플랫폼 다운로드 기능 (확인 창이 뜰 수 있음)
       DLC.save({filename:f.name,data:f.text}).then(()=>msg(`${f.name} 저장됨`))
