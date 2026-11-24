@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="ko" class="locked">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>출고 진척 현황판</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  /* Layout: 고정 헤더(제목+탭) → [실적 조회] ① CBE 출고실적(당일·누적 카드, USE+매장) ② 오늘 흐름 ③ 일자별 계획·주문·실적 ④ 미출고 관리 ⑤ 참고(접힘) / [파일 올리기] */
+  :root{
+    --bg:#f2f4f7; --surface:#ffffff; --surface-2:#eef1f5; --border:#d9dfe7;
+    --fg:#111820; --muted:#566373; --faint:#8592a2;
+    --accent:#1f5fd6; --accent-soft:#e4ecfc;
+    --use:#2456c9; --use-soft:#e1e9fb;
+    --store:#6d3fc8; --store-soft:#ede6fa;
+    --good:#1d7a3e; --good-soft:#dcf0e2;
+    --warn:#a8580c; --warn-soft:#f8ebd8;
+    --crit:#c0322b; --crit-soft:#f9e1df;
+    --track:#e2e7ee; --act:#d4a21a; --oline:#6d3fc8;
+    --font-sans:"Pretendard","Inter",system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e1217; --surface:#161b22; --surface-2:#1d242d; --border:#2b333d;
+    --fg:#e5ebf1; --muted:#9aa6b3; --faint:#6d7987;
+    --accent:#5b8dff; --accent-soft:#172840;
+    --use:#6b98ff; --use-soft:#172840;
+    --store:#a98bf5; --store-soft:#261d3d;
+    --good:#4cbb63; --good-soft:#132a1b;
+    --warn:#e0a234; --warn-soft:#2e2411;
+    --crit:#f06a60; --crit-soft:#3a1816;
+    --track:#262e38; --act:#e3b341; --oline:#a98bf5; color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0e1217; --surface:#161b22; --surface-2:#1d242d; --border:#2b333d;
+    --fg:#e5ebf1; --muted:#9aa6b3; --faint:#6d7987;
+    --accent:#5b8dff; --accent-soft:#172840;
+    --use:#6b98ff; --use-soft:#172840;
+    --store:#a98bf5; --store-soft:#261d3d;
+    --good:#4cbb63; --good-soft:#132a1b;
+    --warn:#e0a234; --warn-soft:#2e2411;
+    --crit:#f06a60; --crit-soft:#3a1816;
+    --track:#262e38; --act:#e3b341; --oline:#a98bf5; color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);font-family:var(--font-sans);line-height:1.5;font-variant-numeric:tabular-nums}
+  h1,h2,h3{margin:0;text-wrap:balance;letter-spacing:-.01em}
+  button{font:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--border)}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:20;background:var(--surface)}
+  .hin{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 0}
+  .htop{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .htop h1{font-size:1.1rem;font-weight:800;margin-right:auto}
+  .htop .asof{font-size:.78rem;color:var(--muted)}
+  .htop .asof b{color:var(--fg)}
+  .tabs{display:flex;gap:4px;margin-top:8px}
+  .tab{appearance:none;background:none;border:0;border-bottom:2px solid transparent;padding:8px 14px 10px;font-weight:700;font-size:.88rem;color:var(--muted);cursor:pointer}
+  .tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab:hover{color:var(--fg)}
+
+  .wrap{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px 56px}
+  section{margin-top:30px}
+  .shead{display:flex;align-items:baseline;gap:6px 12px;margin-bottom:12px;flex-wrap:wrap}
+  .shead h2{font-size:1.02rem;font-weight:800}
+  .shead h3{font-size:.9rem;font-weight:700}
+  .shead .note{font-size:.76rem;color:var(--faint)}
+  .shead .push{margin-left:auto}
+  .num-b{font-size:.74rem;font-weight:800;color:var(--accent);margin-right:2px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+  .btn{appearance:none;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:700;font-size:.82rem;line-height:1;padding:9px 14px;border-radius:8px;cursor:pointer;white-space:nowrap}
+  .btn:hover{filter:brightness(1.07)}
+  .btn.line{background:transparent;color:var(--accent)}
+  .btn.sm{padding:6px 10px;font-size:.76rem;border-radius:6px}
+  .btn.danger{border-color:var(--crit);color:var(--crit);background:transparent}
+  .btn.danger.armed{background:var(--crit);color:#fff}
+  .copied{color:var(--good);font-size:.76rem;font-weight:700}
+  .switch{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:3px;gap:3px}
+  .switch button{appearance:none;border:0;background:transparent;padding:6px 13px;border-radius:6px;font-size:.8rem;font-weight:700;color:var(--muted);cursor:pointer}
+  .switch.sm button{padding:4px 10px;font-size:.75rem}
+  .switch button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .14)}
+  select,input{font:inherit;font-size:.82rem;font-weight:600;color:var(--fg);background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:5px 8px;max-width:100%}
+
+  /* 업로드 */
+  .drop{margin-top:22px;border:2px dashed var(--border);border-radius:12px;background:var(--surface);padding:42px 24px;text-align:center;cursor:pointer}
+  .drop.hot{border-color:var(--accent);background:var(--accent-soft)}
+  .drop h2{font-size:1.15rem;font-weight:800;margin-bottom:6px}
+  .drop p{color:var(--muted);margin:4px auto;max-width:52ch;font-size:.88rem}
+  .drop .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;color:var(--faint);margin-top:10px}
+  .drop .btn{margin-top:16px}
+  .msg{margin-top:12px;font-size:.86rem;min-height:1.3em}
+  .msg.ok{color:var(--good)} .msg.bad{color:var(--crit)}
+  .defs{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.78rem;color:var(--muted);margin-top:6px}
+  .defs b{color:var(--fg);font-weight:700}
+
+  /* 표 공통 */
+  .tbl{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+  .tbl.scroll{max-height:440px;overflow-y:auto}
+  table{border-collapse:collapse;width:100%;font-size:.84rem}
+  th,td{padding:8px 12px;text-align:right;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{position:sticky;top:0;z-index:1;background:var(--surface-2);color:var(--muted);font-weight:700;font-size:.74rem;border-bottom:1px solid var(--border)}
+  tbody tr+tr td{border-top:1px solid var(--border)}
+  tr.sub td:first-child{padding-left:30px;color:var(--muted)}
+  tr.tot td{font-weight:800;background:var(--surface-2)}
+  tr.oldest td{background:color-mix(in srgb,var(--warn) 9%,transparent)}
+  tr.pre td{color:var(--muted)}
+  tr.today td{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+  td.crit{color:var(--crit);font-weight:700}
+  td.long{color:var(--crit);font-weight:700;background:color-mix(in srgb,var(--crit) 7%,transparent)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem}
+  .empty{padding:24px;text-align:center;color:var(--faint);font-size:.86rem}
+  .pill{display:inline-block;padding:2px 8px;border-radius:5px;font-size:.72rem;font-weight:700;white-space:nowrap}
+  .pill.good{background:var(--good-soft);color:var(--good)}
+  .pill.warn{background:var(--warn-soft);color:var(--warn)}
+  .pill.crit{background:var(--crit-soft);color:var(--crit)}
+  .pill.mute{background:var(--surface-2);color:var(--muted)}
+  .tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.7rem;font-weight:800}
+  .tag.use{background:var(--use-soft);color:var(--use)} .tag.store{background:var(--store-soft);color:var(--store)}
+
+  /* 조회 조건 */
+  .ctrl{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:16px}
+  .ctrl label{display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:700;color:var(--muted)}
+  .ctrl .meta{font-size:.74rem;color:var(--faint);margin-left:auto}
+
+  /* ① CBE 출고실적 */
+  .cbe{margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+  .cbe-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:14px}
+  .cbe-head h2{font-size:1.12rem;font-weight:900;margin-right:auto}
+  .cbe-head label{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;color:var(--muted)}
+  .cbe-head input[type=text]{width:7.5em}
+  .grp-t{display:flex;align-items:baseline;gap:8px;margin:2px 0 8px}
+  .grp-t b{font-size:.9rem;font-weight:900}
+  .grp-t span{font-size:.74rem;color:var(--faint)}
+  .kgrid{display:grid;grid-template-columns:84px repeat(5,minmax(0,1fr));border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .kgrid.s3{grid-template-columns:84px repeat(4,minmax(0,1fr))}
+  .kc.cxl .v{color:var(--warn)}
+  .kgrid>div{padding:11px 14px;border-top:1px solid var(--border)}
+  .kgrid>div.r1{border-top:0}
+  .kgrid>div+div:not(.rl){box-shadow:inset 1px 0 0 var(--border)}
+  .kgrid .rl{background:var(--surface-2);display:flex;flex-direction:column;justify-content:center}
+  .kgrid .rl b{font-size:.92rem;font-weight:900}
+  .kgrid .rl span{font-size:.72rem;color:var(--muted)}
+  .kc .l{font-size:.74rem;font-weight:800;color:var(--muted)}
+  .kc .v{font-size:1.55rem;font-weight:900;letter-spacing:-.02em;line-height:1.2;margin-top:2px}
+  .kc .v small{font-size:.76rem;font-weight:600;color:var(--muted);margin-left:3px}
+  .kc .s{font-size:.74rem;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:8px}
+  .kc .bar{flex:1;max-width:120px}
+  .kc.plan .v{color:var(--muted)}
+  .kc.ord .v{color:var(--oline)}
+  .kc.ship .v{color:var(--fg)}
+  .kc.rem .v{color:var(--crit)}
+  .kgrid.s3 .kc .v{font-size:1.25rem}
+  .bar{height:7px;border-radius:4px;background:var(--track);overflow:hidden}
+  .bar>i{display:block;height:100%;border-radius:4px;background:var(--c,var(--accent))}
+  .pct{font-weight:900;color:var(--fg)}
+  .cbe-foot{display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:space-between;font-size:.74rem;color:var(--muted);margin-top:10px}
+
+  .typesw{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:30px;padding-top:16px;border-top:1px solid var(--border)}
+  .typesw .note{font-size:.76rem;color:var(--faint)}
+
+  /* 차트 */
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.76rem;color:var(--muted);margin-bottom:8px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:14px;height:3px;border-radius:2px;background:var(--c)}
+  .legend i.sq{width:10px;height:10px}
+  .legend i.band{height:10px;background:color-mix(in srgb,var(--crit) 20%,transparent)}
+  .legend i.dash{background:repeating-linear-gradient(90deg,var(--c) 0 5px,transparent 5px 8px)}
+  .chartwrap{position:relative}
+  .chartbox{overflow-x:auto}
+  .chartbox svg{display:block;width:100%;min-width:640px;height:auto;touch-action:pan-y}
+  .ax{fill:var(--faint);font-size:11px;font-family:var(--font-sans)}
+  .axd{fill:var(--muted);font-size:11px;font-weight:700;font-family:var(--font-sans)}
+  .vl,.rl{font-size:11.5px;font-weight:800;font-family:var(--font-sans)}
+  .tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.76rem;box-shadow:0 4px 14px rgb(0 0 0 / .14);min-width:160px;z-index:5}
+  .tip .t{font-weight:800;margin-bottom:4px}
+  .tip div.r{display:flex;justify-content:space-between;gap:14px;color:var(--muted)}
+  .tip div.r b{color:var(--fg)}
+
+  /* 일자별 표 */
+  .dtbl th:nth-child(-n+3),.dtbl td:nth-child(-n+3){text-align:left}
+  .dtbl td.sun{color:var(--crit)} .dtbl td.sat{color:var(--accent)}
+  .dtbl tr.today td{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+  .dtbl tr.future td{color:var(--faint)}
+  .dtbl input{font-weight:700;border-style:dashed;padding:4px 6px;width:6.5em;text-align:right;background:transparent}
+  .dtbl input.lab{width:9.5em;text-align:left;font-weight:600}
+  .dtbl input:hover{border-color:var(--accent)}
+  .dtbl input::placeholder{color:var(--faint);font-weight:500}
+
+  /* ④ 미출고 관리 */
+  .fifo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .fc{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--fcc,var(--border));border-radius:10px;padding:12px 14px}
+  .fc .l{font-size:.74rem;color:var(--muted);font-weight:800}
+  .fc .v{font-size:1.3rem;font-weight:900;margin-top:4px;line-height:1.25}
+  .fc .s{font-size:.74rem;color:var(--muted);margin-top:3px}
+  .sub-sec{margin-top:22px}
+  .rbar{display:inline-flex;align-items:center;gap:8px}
+  .rbar .bar{width:76px}
+
+  /* ⑤ 참고 */
+  details.ref{margin-top:34px;border-top:1px solid var(--border);padding-top:14px}
+  details.ref>summary{cursor:pointer;font-size:.95rem;font-weight:800;padding:4px 0}
+  details.ref>summary span{font-size:.76rem;font-weight:500;color:var(--faint);margin-left:8px}
+  .heat td,.heat th{padding:7px 0;text-align:center;min-width:40px;font-size:.74rem}
+  .heat th:first-child,.heat td:first-child{text-align:left;padding-left:12px;padding-right:10px;min-width:84px}
+  .heat td.sum,.heat th.sum{min-width:76px;padding-right:12px;text-align:right;font-weight:800}
+  .heat td.c{border-left:1px solid var(--bg)}
+  .heat td.z{color:var(--good)}
+  .hlegend{display:flex;gap:14px;font-size:.72rem;color:var(--faint);margin-top:8px;flex-wrap:wrap}
+
+  @media (max-width:900px){.fifo{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:640px){
+    .kgrid,.kgrid.s3{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .kgrid .rl{grid-column:1/-1;flex-direction:row;gap:8px;align-items:baseline}
+    .kgrid>div+div:not(.rl){box-shadow:none}
+    .fifo{grid-template-columns:1fr}.ctrl .meta{margin-left:0}
+  }
+</style>
+
+<style>
+  :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}
+  html.locked header,html.locked .wrap{visibility:hidden}
+  .gate{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:24px}
+  .gate form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 26px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:10px}
+  .gate h1{font-size:1.1rem;font-weight:800;margin:0 0 6px}
+  .gate label{font-size:.8rem;font-weight:700;color:var(--muted)}
+  .gate input{font-size:1rem;padding:10px 12px;letter-spacing:.2em}
+  .gate .btn{padding:11px 14px;font-size:.9rem}
+  .gate p{margin:0;min-height:1.2em;font-size:.82rem;color:var(--crit)}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <form id="gateForm" autocomplete="off">
+    <h1>출고 진척 현황판</h1>
+    <label for="gatePw">비밀번호</label>
+    <input id="gatePw" type="password" inputmode="numeric" autocomplete="current-password" required>
+    <button class="btn" type="submit">열기</button>
+    <p id="gateMsg" role="alert"></p>
+  </form>
+</div>
+<header>
+  <div class="hin">
+    <div class="htop">
+      <h1>출고 진척 현황판</h1>
+      <span class="asof" id="hdrAsof"></span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-report" data-view="report">실적 조회</button>
+      <button class="tab" role="tab" id="tab-upload" data-view="upload">파일 올리기</button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- ===== 파일 올리기 ===== -->
+  <div id="view-upload" hidden>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="출고 실적 파일 선택">
+      <h2>WHOUT 출고 실적 파일 올리기</h2>
+      <p>엑셀 파일을 끌어다 놓거나 눌러서 선택하세요. 파일은 이 브라우저 안에서만 읽고, 새 파일을 올리기 전까지 마지막 기록이 유지됩니다.</p>
+      <div class="code">WHOUT_RSLT_ORD_YYYYMMDD_HHMMSS.xlsx</div>
+      <button class="btn" type="button" id="pick">파일 선택</button>
+      <input type="file" id="file" accept=".xlsx,.xls" hidden>
+    </div>
+    <div class="msg" id="msg" role="status"></div>
+    <div class="defs">
+      <span><b>USE</b> 거래처코드 FE · 건(전표)</span>
+      <span><b>매장</b> FE 외 · pcs(총낱개)</span>
+      <span><b>주문</b> TCS수신시간</span>
+      <span><b>출고</b> 그날 출고 완료(최종작업시간)</span><span><b>잔여</b> 원주문 − 결품 − 출고 &gt; 0</span>
+      <span><b>시간</b> PT 기준</span>
+    </div>
+    <section>
+      <div class="shead"><h2>업로드 이력</h2><span class="note">이 브라우저에 집계값만 저장 · 최근 20개</span></div>
+      <div class="tbl"><table>
+        <thead><tr><th>추출 시각 (PT)</th><th>파일</th><th>USE 출고 / 주문</th><th>매장 출고 / 주문</th><th>USE 잔여</th><th>매장 잔여</th><th></th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <!-- ===== 실적 조회 ===== -->
+  <div id="view-report" hidden>
+    <div id="noData" class="card" style="margin-top:22px;text-align:center;padding:40px 20px" hidden>
+      <h2 style="font-size:1.05rem;margin-bottom:6px">불러온 파일이 없습니다</h2>
+      <p style="color:var(--muted);font-size:.88rem;margin:0 0 16px">파일 올리기 탭에서 WHOUT 출고 실적 엑셀을 올려주세요.</p>
+      <button class="btn" type="button" id="goUpload">파일 올리기</button>
+    </div>
+
+    <div id="report" hidden>
+      <div class="ctrl">
+        <label>기준일 <select id="daySel"></select></label>
+        <label>추출본 <select id="snapSel"></select></label>
+        <span class="meta" id="snapMeta"></span>
+      </div>
+
+      <!-- ① CBE 출고실적 -->
+      <div class="cbe">
+        <div class="cbe-head">
+          <h2 id="rTitle">■ CBE 출고실적</h2>
+          <label>행사명 <input type="text" id="evName" maxlength="30" placeholder="행사명 입력"></label>
+          <label>기간 <input type="date" id="evStart" aria-label="행사 시작일"> ~ <input type="date" id="evEnd" aria-label="행사 종료일"></label>
+          <button type="button" class="btn sm" id="copyRpt">보고 표 복사</button>
+          <span class="copied" id="copyMsg" role="status"></span>
+        </div>
+        <div class="grp-t"><b style="color:var(--use)">USE</b><span>건 · 계획 대비</span></div>
+        <div class="kgrid" id="kUse"></div>
+        <div class="grp-t" style="margin-top:14px"><b style="color:var(--store)">매장</b><span id="kStoreNote">pcs</span></div>
+        <div class="kgrid s3" id="kStore"></div>
+        <div class="cbe-foot"><span id="rNote"></span><span id="rNote2"></span></div>
+      </div>
+
+      <div class="typesw">
+        <div class="switch" role="group" aria-label="유형 선택">
+          <button type="button" id="sw-USE" data-type="USE">USE · 건</button>
+          <button type="button" id="sw-STORE" data-type="STORE">매장 · pcs</button>
+        </div>
+        <span class="note">아래 ②~④가 선택한 유형으로 바뀝니다</span>
+      </div>
+
+      <!-- ② 오늘 흐름 -->
+      <section style="margin-top:16px">
+        <div class="shead"><h2><span class="num-b">②</span>오늘 흐름</h2><span class="note" id="chartNote"></span></div>
+        <div class="card chartwrap" id="chartCard">
+          <div class="legend" id="chartLegend"></div>
+          <div class="chartbox"><svg id="combo" role="img" aria-label="당일 누적 주문과 출고, 두 선 사이가 잔여"></svg></div>
+          <div class="tip" id="tip" hidden></div>
+        </div>
+      </section>
+
+      <!-- ③ 일자별 계획·주문·실적 -->
+      <section>
+        <div class="shead"><h2><span class="num-b">③</span>일자별 계획 · 주문 · 실적</h2><span class="note" id="dayNote"></span>
+          <span class="push"><button type="button" class="btn sm line" id="copyDay">일자별 표 복사</button> <span class="copied" id="copyMsg2" role="status"></span></span></div>
+        <div class="card">
+          <div class="legend" id="rLegend"></div>
+          <div class="chartbox"><svg id="rChart" role="img" aria-label="일자별 계획, 출고 실적 막대와 주문 선"></svg></div>
+        </div>
+        <div class="tbl" style="margin-top:12px"><table class="dtbl" id="dtbl">
+          <thead><tr><th>일자</th><th>요일</th><th>구분</th><th>계획</th><th>주문</th><th>주문/계획</th><th>출고 실적</th><th>출고/계획</th><th>결품(고객취소)</th><th>잔여</th></tr></thead>
+          <tbody id="dBody"></tbody>
+        </table></div>
+        <div class="cbe-foot"><span>계획 · 구분 칸은 눌러서 입력 · 엑셀에서 한 열을 복사해 첫 칸에 붙여넣으면 아래로 채워집니다</span><span id="planNote"></span></div>
+      </section>
+
+      <!-- ④ 미출고 관리 -->
+      <section>
+        <div class="shead"><h2><span class="num-b">④</span>미출고 관리</h2><span class="note" id="fifoNote"></span></div>
+        <div class="fifo" id="fifoCards"></div>
+        <div class="sub-sec">
+          <div class="shead"><h3>일자별 잔여 흐름</h3><span class="note">처리일 기준 · 전일 잔여 + 주문 − 출고 − 결품 = 잔여 · 출고는 그날 실제 처리한 수량(상단 카드와 같음)</span></div>
+          <div class="tbl"><table>
+            <thead><tr><th>일자</th><th>전일 잔여</th><th>+ 주문</th><th>− 출고</th><th>− 결품(고객취소)</th><th>= 잔여</th><th>처리율</th></tr></thead>
+            <tbody id="ledBody"></tbody>
+          </table></div>
+        </div>
+        <div class="sub-sec">
+          <div class="shead"><h3>수신일별 현재 잔여</h3><span class="note">수신일 기준 · 그날 들어온 주문이 지금까지 어떻게 처리됐는지 · 오래된 날짜의 잔여부터 0이 돼야 선입선출</span></div>
+          <div class="tbl"><table>
+            <thead><tr><th>수신일</th><th>주문</th><th>그중 출고</th><th>그중 결품(고객취소)</th><th>현재 잔여</th><th>장기 잔여</th><th>처리율</th></tr></thead>
+            <tbody id="rcvBody"></tbody>
+          </table></div>
+        </div>
+        <div class="sub-sec">
+          <div class="shead"><h3>장기 잔여 목록 (D+2 이상)</h3><span class="note" id="longNote"></span></div>
+          <div class="tbl scroll"><table>
+            <thead><tr><th>전표번호</th><th>거래처코드</th><th>TCS 수신</th><th>경과</th><th>OL</th><th>처리 OL</th><th>주문 pcs</th><th>잔여 pcs</th><th>상태</th></tr></thead>
+            <tbody id="longBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ⑤ 참고 -->
+      <details class="ref" id="refBox">
+        <summary>⑤ 참고<span>러닝 SKU · 건당 OL/pcs · 시간대별 · 시간 기준</span></summary>
+
+        <section style="margin-top:14px">
+          <div class="shead"><h3>러닝 SKU</h3><span class="note" id="skuNote"></span></div>
+          <div class="tbl"><table>
+            <thead><tr><th>일자</th><th>USE 주문 SKU</th><th>USE 출고 SKU</th><th>매장 주문 SKU</th><th>매장 출고 SKU</th></tr></thead>
+            <tbody id="skuBody"></tbody>
+          </table></div>
+        </section>
+
+        <section>
+          <div class="shead"><h3>건당 OL · pcs</h3><span class="note" id="olNote"></span></div>
+          <div class="tbl"><table>
+            <thead><tr><th>유형</th><th>건</th><th>OL</th><th>pcs</th><th>건당 OL</th><th>건당 pcs</th></tr></thead>
+            <tbody id="olBody"></tbody>
+          </table></div>
+        </section>
+
+        <section>
+          <div class="shead"><h3>수신일 · 시간대별</h3><span class="note" id="heatNote"></span>
+            <span class="switch sm push" role="group" aria-label="표시 값">
+              <button type="button" data-hm="pend" id="hm-pend">잔여</button>
+              <button type="button" data-hm="ord" id="hm-ord">주문</button>
+              <button type="button" data-hm="ship" id="hm-ship">출고</button>
+            </span></div>
+          <div class="tbl"><table class="heat" id="heat"></table></div>
+          <div class="hlegend" id="hlegend"></div>
+        </section>
+
+        <section>
+          <div class="shead"><h3>시간대별 상세</h3><span class="note">수신 시간대 기준</span></div>
+          <div class="tbl scroll"><table>
+            <thead><tr><th>수신 시간대</th><th>주문</th><th>출고</th><th>결품(고객취소)</th><th>잔여</th><th>장기 잔여</th><th>처리율</th></tr></thead>
+            <tbody id="hourBody"></tbody>
+          </table></div>
+        </section>
+
+        <section>
+          <div class="shead"><h3>시간 기준</h3><span class="note">기본 PT · KST로 바꾸면 날짜 구분과 모든 시각이 KST로 바뀝니다</span></div>
+          <span class="switch sm" role="group" aria-label="시간 기준">
+            <button type="button" id="tz-PT" data-tz="PT">PT</button>
+            <button type="button" id="tz-KST" data-tz="KST">KST</button>
+          </span>
+        </section>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== CORE-START: 파일 → 집계 (KST 벽시계 기준, 순수 함수) ===== */
+const HOUR=36e5, MIN=6e4, DAY=864e5;
+function num(v){if(v==null||v==='')return 0;const n=Number(String(v).replace(/,/g,''));return isNaN(n)?0:n;}
+// 시각은 파일에 적힌 벽시계 값(KST)을 UTC ms 형태로 보관
+function wall(v){
+  if(v==null||v==='')return null;
+  if(v instanceof Date&&!isNaN(v))return Date.UTC(v.getFullYear(),v.getMonth(),v.getDate(),v.getHours(),v.getMinutes(),v.getSeconds());
+  if(typeof v==='number')return Math.round((v-25569)*864e5);
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if(m)return Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0));
+  m=s.match(/^(\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})\s+(\d{1,2}):(\d{2})/);   // TCS: YY/MM/DD HH:MM
+  if(m)return Date.UTC(2000+ +m[1],m[2]-1,+m[3],+m[4],+m[5]);
+  return null;
+}
+function fname2wall(n){const m=n&&String(n).match(/(20\d{2})(\d{2})(\d{2})_?(\d{2})(\d{2})(\d{2})?/);
+  return m?Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0)):null;}
+
+function colIdx(rows){
+  const hi=rows.findIndex(r=>Array.isArray(r)&&String(r[0]??'').trim()==='센터');
+  if(hi<0)throw new Error("'센터' 헤더 행을 찾지 못했습니다. WHOUT 출고 실적 원본 엑셀인지 확인해 주세요.");
+  const h=rows[hi].map(v=>String(v??'').trim()), sub=(rows[hi+1]||[]).map(v=>String(v??'').trim());
+  const f=n=>{const i=h.indexOf(n);if(i<0)throw new Error(`'${n}' 열을 찾지 못했습니다.`);return i;};
+  const base={code:f('거래처코드'),slip:f('전표번호'),work:f('최종작업시간'),tcs:f('TCS수신시간'),odate:h.indexOf('주문일자'),sku:h.indexOf('상품코드')};
+  // 형식 1: 1단 헤더 ('출고량 총낱개', '원주문량1 총낱개', '결품량 총낱개')
+  const s1=h.findIndex(x=>/^출고량\s*총낱개$/.test(x)), o1=h.findIndex(x=>/^원주문량\d*\s*총낱개$/.test(x));
+  if(s1>=0&&o1>=0){let k=h.findIndex(x=>/결품/.test(x)&&/총낱개/.test(x));if(k<0)k=h.findIndex(x=>/결품/.test(x));
+    return {...base,start:hi+1,ship:s1,ord:o1,short:k};}
+  // 형식 2: 2단 헤더 ('출고량' / 하위 '총낱개')
+  const iShipG=h.indexOf('출고량'), iOrdG=h.findIndex(x=>x.startsWith('원주문량'));
+  if(iShipG<0||iOrdG<0)throw new Error("'출고량 총낱개' / '원주문량 총낱개' 열을 찾지 못했습니다.");
+  const tot=(a,b)=>{for(let i=a;i<b;i++)if(sub[i]==='총낱개')return i;throw new Error("'총낱개' 하위 열을 찾지 못했습니다.");};
+  const g=h.findIndex(x=>/결품/.test(x)); let k=g;
+  if(g>=0)for(let i=g;i<Math.min(g+5,sub.length);i++)if(sub[i]==='총낱개'){k=i;break;}
+  return {...base,start:hi+2,ship:tot(iShipG,iOrdG),ord:tot(iOrdG,Math.max(h.length,sub.length)),short:k};
+}
+
+function aggregate(rows,fname){
+  const ix=colIdx(rows);
+  let asof=fname2wall(fname);
+  if(asof==null)for(let i=ix.start;i<rows.length;i++){const r=rows[i];if(!r)continue;
+    if(num(r[ix.ship])<=0&&(ix.short<0||num(r[ix.short])<=0))continue;
+    const w=wall(r[ix.work]);if(w!=null&&(asof==null||w>asof))asof=w;}
+  const orders={USE:new Map(),STORE:new Map()}, ln=new Map(), codes=[];
+  const ci=c=>{let i=codes.indexOf(c);if(i<0){codes.push(c);i=codes.length-1;}return i;};
+  // 러닝 SKU: SKU별 주문·출고가 있었던 날(PT 일자, KST 일자)
+  const sk={U:new Map(),S:new Map()}, skPend={U:new Set(),S:new Set()};
+  const dayN=(t,tz)=>Math.floor(tzConv(t,tz)/DAY);
+  const skAdd=(T,sku,kind,t)=>{let e=sk[T].get(sku);if(!e){e={rP:new Set(),sP:new Set(),rK:new Set(),sK:new Set()};sk[T].set(sku,e);}
+    e[kind+'P'].add(dayN(t,'PT'));e[kind+'K'].add(dayN(t,'KST'));};
+  let n=0,noTcs=0; const odates=new Set();
+  for(let i=ix.start;i<rows.length;i++){
+    const r=rows[i]; if(!Array.isArray(r))continue;
+    const slip=String(r[ix.slip]??'').trim(); if(!slip)continue;
+    n++;
+    const code=String(r[ix.code]??'').trim()||'(미상)', use=code.toUpperCase()==='FE';
+    const ord=num(r[ix.ord]), shp=num(r[ix.ship]), sh=ix.short>=0?num(r[ix.short]):0;
+    const tcs=wall(r[ix.tcs]); if(tcs==null)noTcs++;
+    // 행 기준: 원주문 − 결품 − 출고 = 0 이면 완결, 0보다 크면 그 차이가 잔여(미출고)
+    const act=shp>0||sh>0, ev=act?(wall(r[ix.work])??asof):null;
+    const shipQ=Math.min(shp,ord), xQ=Math.min(sh,ord-shipQ), done=shipQ+xQ, closed=done>=ord;
+    if(ix.odate>=0&&r[ix.odate])odates.add(String(r[ix.odate]).slice(0,10));
+    const M=orders[use?'USE':'STORE'];
+    let o=M.get(slip); if(!o){o={code,tcs,L:0,cl:0,act:0,sl:0,pcs:0,pend:0,last:null};M.set(slip,o);}
+    o.L++; o.pcs+=ord; o.pend+=ord-done; if(closed)o.cl++; if(act)o.act++; if(shp>0)o.sl++;
+    if(ev!=null&&(o.last==null||ev>o.last))o.last=ev;
+    if(tcs!=null&&(o.tcs==null||tcs<o.tcs))o.tcs=tcs;
+    if(!use&&tcs!=null){   // 매장: pcs 단위, 행 묶음 [코드, 수신분, 처리분, 주문, 출고, 완결, 행수, 결품]
+      const c=ci(code),tm=Math.floor(tcs/MIN),em=ev==null?-1:Math.floor(ev/MIN),k=c+','+tm+','+em;
+      let a=ln.get(k); if(!a){a=[c,tm,em,0,0,0,0,0];ln.set(k,a);} a[3]+=ord;a[4]+=shp;a[5]+=done;a[6]++;a[7]+=xQ;}
+    if(ix.sku>=0){const sku=String(r[ix.sku]??'').trim(), T=use?'U':'S';
+      if(sku){ if(tcs!=null)skAdd(T,sku,'r',tcs); if(shp>0&&ev!=null)skAdd(T,sku,'s',ev); if(!closed)skPend[T].add(sku); }}
+  }
+  // USE: 전표의 모든 행이 완결되면 완료 (완료 시각 = 처리 행 최종작업시간 중 가장 늦은 값)
+  //      출고된 행이 하나도 없이 결품으로만 완결된 전표 = 결품(고객취소)
+  const uev=new Map(), ulc=[], so=[], slc=[];
+  for(const [slip,o] of orders.USE){ if(o.tcs==null)continue;
+    const done=o.cl===o.L, tm=Math.floor(o.tcs/MIN), dm=done?Math.floor((o.last??asof??o.tcs)/MIN):-1, p=!done&&o.act>0?1:0, x=done&&o.sl===0&&o.act>0?1:0, k=tm+','+dm+','+p+','+x;
+    let a=uev.get(k); if(!a){a=[tm,dm,p,0,0,0,x];uev.set(k,a);} a[3]++;a[4]+=o.pcs;a[5]+=o.L;
+    if(!done&&asof!=null&&asof-o.tcs>=DAY)ulc.push([slip,tm,o.L,o.act,o.pcs,o.pend]);
+  }
+  for(const [slip,o] of orders.STORE){ if(o.tcs==null)continue;
+    const done=o.cl===o.L, c=ci(o.code), tm=Math.floor(o.tcs/MIN), dm=done?Math.floor((o.last??asof??o.tcs)/MIN):-1;
+    so.push([c,tm,dm,!done&&o.act>0?1:0,o.L,o.pcs]);
+    if(!done&&asof!=null&&asof-o.tcs>=DAY)slc.push([slip,c,tm,o.L,o.act,o.pcs,o.pend]);
+  }
+  ulc.sort((a,b)=>a[1]-b[1]); slc.sort((a,b)=>a[2]-b[2]);
+  // SKU 일자 비트마스크 (기준일부터 31일까지)
+  let bP=Infinity,bK=Infinity;
+  for(const T of ['U','S'])for(const e of sk[T].values()){for(const d of e.rP)bP=Math.min(bP,d);for(const d of e.rK)bK=Math.min(bK,d);}
+  const mask=(set,b)=>{let x=0;for(const d of set){const k=d-b;if(k>=0&&k<31)x|=(1<<k);}return x;};
+  const skuOut=T=>{const r=[],s=[],rk=[],sk2=[];for(const e of sk[T].values()){r.push(mask(e.rP,bP));s.push(mask(e.sP,bP));rk.push(mask(e.rK,bK));sk2.push(mask(e.sK,bK));}
+    return {n:sk[T].size,pend:skPend[T].size,rP:r,sP:s,rK:rk,sK:sk2};};
+  return {v:4,id:String(fname)+'|'+asof,fname:String(fname),asof,savedAt:Date.now(),rows:n,noTcs,
+    odates:[...odates].sort(),hasShort:ix.short>=0,codes,
+    U:{ev:[...uev.values()],lc:ulc.slice(0,3000)},S:{ord:so,ln:[...ln.values()],lc:slc.slice(0,3000)},
+    sku:ix.sku>=0?{bP:isFinite(bP)?bP:0,bK:isFinite(bK)?bK:0,U:skuOut('U'),S:skuOut('S')}:null};
+}
+/* ===== CORE-END ===== */
+
+/* ===== MODEL-START: 시간대 변환 · 집계 (순수 함수) ===== */
+const db=t=>Math.floor(t/DAY)*DAY, hb=t=>Math.floor(t/HOUR)*HOUR, mb=t=>Math.floor(t/MIN)*MIN;
+const ptFmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/Los_Angeles',hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+const offC=new Map();
+function ptOff(utc){const k=Math.floor(utc/HOUR);let o=offC.get(k);
+  if(o==null){const p={};for(const x of ptFmt.formatToParts(new Date(k*HOUR)))p[x.type]=x.value;
+    o=Date.UTC(+p.year,p.month-1,+p.day,(+p.hour)%24,+p.minute)-k*HOUR;offC.set(k,o);}
+  return o;}
+// KST 벽시계 → 선택한 시간대 벽시계 (PT는 서머타임 반영)
+function tzConv(kst,tz){if(kst==null)return null;if(tz!=='PT')return kst;const utc=kst-9*HOUR;return utc+ptOff(utc);}
+
+function buildModel(s,tz){
+  const cv=m=>tzConv(m*MIN,tz), asof=tzConv(s.asof,tz), lastDay=db(asof);
+  const isLong=t=>db(t)<=lastDay-2*DAY;            // D+2 이상
+  // 공통 항목: t=수신, d=처리 시각, q=주문, dq=완결(출고+결품), xq=결품(고객취소), pq=잔여
+  const U=s.U.ev.map(([tm,dm,p,n,pcs,OL,x])=>({t:cv(tm),d:dm>=0?cv(dm):null,q:n,dq:dm>=0?n:0,xq:dm>=0&&x?n:0,pq:dm>=0?0:n,pp:p?n:0,pcs,OL}));
+  const S=s.S.ln.map(([c,tm,em,ord,shp,done,L,xp])=>({c,t:cv(tm),d:em>=0?cv(em):(done>0?asof:null),q:ord,dq:done,xq:xp||0,pq:ord-done,L}));
+  const SO=s.S.ord.map(([c,tm,dm,p,L,pcs])=>({c,t:cv(tm),d:dm>=0?cv(dm):null,p,L,pcs}));
+  const days=[...new Set([...U,...S].map(x=>db(x.t)))];
+  if(!days.includes(lastDay))days.push(lastDay);
+  days.sort((a,b)=>a-b);
+  const UL=s.U.lc.map(([slip,tm,L,act,pcs,pend])=>({slip,code:'FE',t:cv(tm),L,act,pcs,pend})).filter(o=>isLong(o.t));
+  const SL=s.S.lc.map(([slip,c,tm,L,act,pcs,pend])=>({slip,code:s.codes[c],t:cv(tm),L,act,pcs,pend})).filter(o=>isLong(o.t));
+  return {tz,asof,lastDay,days,isLong,codes:s.codes,sku:s.sku,hasShort:!!s.hasShort,USE:{items:U,long:UL},STORE:{items:S,orders:SO,long:SL}};
+}
+// 일자별: 주문 = 그날 수신(시작일 이후), 출고 = 그날 출고 완료(이월분 포함), 결품 = 그날 고객취소로 완결
+//         잔여 = 이월 + 누적 주문 − 누적 출고 − 누적 결품
+function dailyRows(items,S0,E0,lastDay){
+  const map=new Map(); for(let t=S0;t<=E0;t+=DAY)map.set(t,{t,o:0,s:0,x:0,sc:0,tp:0,fut:t>lastDay});
+  let carry0=0;
+  for(const x of items){
+    if(x.t<S0)carry0+=x.q-((x.d!=null&&x.d<S0)?x.dq:0);
+    else{const a=map.get(db(x.t)); if(a){a.o+=x.q; a.tp+=x.q-((x.d!=null&&x.d<a.t+DAY)?x.dq:0);}}
+    if(x.d!=null&&x.dq&&x.d>=S0){const b=map.get(db(x.d)); if(b){const xx=x.xq||0; b.s+=x.dq-xx; b.x+=xx; if(x.t<S0)b.sc+=x.dq;}}
+  }
+  let co=0,cs=0,cx=0,cc=0;
+  const rows=[...map.values()].map(r=>{co+=r.o;cs+=r.s;cx+=r.x;cc+=r.sc;return {...r,co,cs,cx,rem:carry0+co-cs-cx,crem:carry0-cc};});
+  return {carry0,rows};
+}
+// 당일 누적 시계열 (분 단위): c=이월, r=당일 주문 누적, s=출고 누적, x=결품 누적 → 잔여 = c + r − s − x
+function seriesFor(items,Ds){
+  const ev=new Map(), add=(t,r,s,x)=>{const k=mb(t);const a=ev.get(k)||[0,0,0];a[0]+=r;a[1]+=s;a[2]+=x;ev.set(k,a);};
+  const De=Ds+DAY; let c=0;
+  for(const x of items){
+    if(x.t<Ds)c+=x.q-((x.d!=null&&x.d<Ds)?x.dq:0);else if(x.t<De&&x.q)add(x.t,x.q,0,0);
+    if(x.d!=null&&x.dq&&x.d>=Ds&&x.d<De){const xx=x.xq||0;add(x.d,0,x.dq-xx,xx);}}
+  let r=0,s=0,xx=0; const pts=[{t:Ds,c,r:0,s:0,x:0}];
+  for(const k of [...ev.keys()].sort((a,b)=>a-b)){const a=ev.get(k);r+=a[0];s+=a[1];xx+=a[2];
+    const p={t:k,c,r,s,x:xx}; if(k===Ds)pts[0]=p;else pts.push(p);}
+  return pts.map(p=>({...p,o:p.c+p.r,done:p.s+p.x,rem:p.c+p.r-p.s-p.x}));
+}
+// 수신 구간별 주문/출고/결품/잔여/장기잔여 + 선입선출 미준수 표시
+function buckets(items,isLong,key){
+  const m=new Map();
+  for(const x of items){const k=key(x.t);let r=m.get(k);if(!r){r={t:k,ord:0,ship:0,xq:0,pend:0,long:0,miss:false};m.set(k,r);}
+    const xx=x.xq||0; r.ord+=x.q;r.ship+=x.dq-xx;r.xq+=xx;r.pend+=x.pq;if(x.pq&&isLong(x.t))r.long+=x.pq;}
+  const rows=[...m.values()].sort((a,b)=>a.t-b.t); let first=null;
+  for(const r of rows){if(first!=null&&r.ship>0)r.miss=true;if(first==null&&r.pend-r.long>0)first=r.t;}
+  return {rows,first,missAmt:rows.reduce((a,r)=>a+(r.miss?r.ship:0),0),missN:rows.filter(r=>r.miss).length};
+}
+function oldestPend(items,isLong,long){let o=null;for(const x of items)if(x.pq>0&&isLong(x.t)===long&&(o==null||x.t<o))o=x.t;return o;}
+// 러닝 SKU: 일자 d(일 번호)에 주문/출고가 있었던 SKU 수, 기간 누적은 범위 비트로 계산
+function skuCount(masks,base,d0,d1){
+  let bits=0; for(let d=d0;d<=d1;d++){const k=d-base;if(k>=0&&k<31)bits|=(1<<k);}
+  if(!bits)return 0; let c=0; for(const x of masks)if(x&bits)c++; return c;
+}
+/* ===== MODEL-END ===== */
+
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString('ko-KR');
+const fmt1=n=>(Math.round(n*10)/10).toLocaleString('ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1});
+const pct=(a,b)=>b>0?a/b*100:0;
+const pctT=(a,b)=>b>0?(a/b*100).toFixed(1)+'%':'—';
+const p2=x=>String(x).padStart(2,'0');
+const d_=t=>new Date(t);
+const WD=['일','월','화','수','목','금','토'];
+const fT=t=>t==null?'—':`${p2(d_(t).getUTCMonth()+1)}/${p2(d_(t).getUTCDate())} ${p2(d_(t).getUTCHours())}:${p2(d_(t).getUTCMinutes())}`;
+const fH=t=>`${p2(d_(t).getUTCMonth()+1)}/${p2(d_(t).getUTCDate())} ${p2(d_(t).getUTCHours())}시`;
+const fHM=t=>`${p2(d_(t).getUTCHours())}:${p2(d_(t).getUTCMinutes())}`;
+const fDay=t=>`${p2(d_(t).getUTCMonth()+1)}/${p2(d_(t).getUTCDate())}`;
+const fDayW=t=>`${fDay(t)} (${WD[d_(t).getUTCDay()]})`;
+const fFull=t=>t==null?'—':`${d_(t).getUTCFullYear()}-${p2(d_(t).getUTCMonth()+1)}-${p2(d_(t).getUTCDate())} ${p2(d_(t).getUTCHours())}:${p2(d_(t).getUTCMinutes())}`;
+function dur(ms){if(ms==null||ms<0)return '—';const m=Math.round(ms/6e4),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mi=m%60;
+  return d?`${d}일 ${h}시간`:h?`${h}시간 ${mi}분`:`${mi}분`;}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pc=p=>p>=95?'good':p>=50?'warn':'crit';
+const TYPES={USE:{name:'USE',code:'FE',c:'var(--use)',u:'건'},STORE:{name:'매장',code:'FE 외',c:'var(--store)',u:'pcs'}};
+const dKey=t=>new Date(t).toISOString().slice(0,10);
+const k2t=s=>{const x=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return x?Date.UTC(+x[1],x[2]-1,+x[3]):null;};
+
+/* ===== 상태 / 저장 (새 파일을 올리기 전까지 유지) ===== */
+const KEY='whout-dash-v4';
+const state={snaps:[],cur:null,type:'USE',hm:'pend',tz:'PT',day:'last',ev:'',start:null,end:null,plans:{},labels:{},mig:0};
+// 사진으로 받은 일자별 계획량 (USE, 건)
+const PLAN_SEED={};   // 공개 배포본: 계획량은 화면 ③ 표에서 입력
+function load(){let j={};try{j=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){}
+  if(Array.isArray(j.snaps))state.snaps=j.snaps.filter(s=>s&&s.v===4);
+  if(j.type==='STORE')state.type='STORE'; if(['pend','ord','ship'].includes(j.hm))state.hm=j.hm;
+  if(j.tz==='KST'||j.tz==='PT')state.tz=j.tz; if(j.cur)state.cur=j.cur;
+  if(typeof j.ev==='string')state.ev=j.ev;
+  if(typeof j.start==='string')state.start=j.start; if(typeof j.end==='string')state.end=j.end;
+  if(j.plans&&typeof j.plans==='object')state.plans=j.plans; if(j.labels&&typeof j.labels==='object')state.labels=j.labels;
+  state.mig=j.mig|0;
+  if(state.mig<2){   // 1회: PT 기준, 11/23~11/30 행사, 계획량 채우기 (이미 입력한 값은 유지)
+    state.tz='PT';
+    for(const [d,[p,l]] of Object.entries(PLAN_SEED)){const k='USE|'+d;if(!(state.plans[k]&&state.plans[k].p!=null))state.plans[k]={...(state.plans[k]||{}),p};if(!state.labels[d])state.labels[d]=l;}
+    state.mig=2; save();
+  }}
+function save(){
+  const keep={snaps:state.snaps,cur:state.cur,type:state.type,hm:state.hm,tz:state.tz,ev:state.ev,start:state.start,end:state.end,
+    plans:state.plans,labels:state.labels,mig:state.mig};
+  for(let i=0;i<40;i++){
+    try{localStorage.setItem(KEY,JSON.stringify(keep));return;}
+    catch(e){if(e&&e.name==='QuotaExceededError'&&keep.snaps.length>1){keep.snaps=keep.snaps.slice(0,-1);state.snaps=keep.snaps;continue;}return;}
+  }
+}
+const curSnap=()=>state.snaps.find(s=>s.id===state.cur)||state.snaps[0]||null;
+let MC={key:null,m:null};
+function model(s){const k=s.id+'|'+state.tz;if(MC.key!==k)MC={key:k,m:buildModel(s,state.tz)};return MC.m;}
+const dayOf=m=>state.day==='last'?m.lastDay:(m.days.includes(state.day)?state.day:m.lastDay);
+const planOf=(k,t)=>(state.plans[k+'|'+dKey(t)]||{}).p;
+// 행사 기간: 시작~종료, 기준일이 기간 밖이면 기준일까지 늘려서 계산
+function evCtx(m){
+  let S0=k2t(state.start), E0=k2t(state.end); const Ds=dayOf(m);
+  if(S0==null)S0=m.days[0]; if(E0==null||E0<S0)E0=Math.max(S0,m.lastDay);
+  if(E0-S0>45*DAY)E0=S0+45*DAY;
+  const pre=Ds<S0, S=pre?Ds:S0, E=Math.max(E0,Ds);
+  return {S0,E0,S,E,Ds,pre,nth:Math.round((Ds-S0)/DAY)+1,closed:Ds<m.lastDay};
+}
+
+/* ===== 라우팅 (탭) ===== */
+function setHdr(){const s=curSnap();
+  $('hdrAsof').innerHTML=s?`<b>${fT(tzConv(s.asof,state.tz))} ${state.tz}</b> 기준`:'';}
+function route(){
+  const h=location.hash.slice(1);
+  const v=(h==='upload'||h==='report')?h:(state.snaps.length?'report':'upload');
+  for(const k of ['upload','report']){$('view-'+k).hidden=k!==v;$('tab-'+k).setAttribute('aria-selected',String(k===v));}
+  if(v==='upload')renderUpload();else renderReport();
+  setHdr();
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{location.hash=b.dataset.view;route();});
+window.addEventListener('hashchange',route);
+$('goUpload').onclick=()=>{location.hash='upload';route();};
+
+/* ===== 업로드 ===== */
+const drop=$('drop');
+drop.onclick=e=>{if(e.target.id!=='file')$('file').click();};
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('file').click();}};
+$('file').onchange=e=>{const f=e.target.files[0];if(f)read(f);e.target.value='';};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hot');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)read(f);});
+
+function setMsg(t,cls){const m=$('msg');m.textContent=t;m.className='msg '+(cls||'');}
+function read(file){
+  setMsg(`${file.name} 읽는 중…`);
+  const fr=new FileReader();
+  fr.onload=()=>{
+    try{
+      const head=new Uint8Array(fr.result.slice(0,16));
+      if(String.fromCharCode(...head).includes('DRMONE'))throw new Error('DRM(Fasoo)으로 암호화된 파일입니다. 복호화된 파일을 올려주세요.');
+      // MS 보안 레이블(IRM) / 암호 보호 파일: OLE 컨테이너 안에 EncryptedPackage 스트림이 있음
+      if(head[0]===0xD0&&head[1]===0xCF&&head[2]===0x11&&head[3]===0xE0){
+        const u=new Uint8Array(fr.result), pat=[...'EncryptedPackage'].flatMap(c=>[c.charCodeAt(0),0]);
+        outer: for(let i=0,n=u.length-32;i<n;i++){for(let j=0;j<pat.length;j++)if(u[i+j]!==pat[j])continue outer;
+          throw new Error('보안 레이블(DRM) 또는 암호로 보호된 파일입니다. 보호를 해제한 파일을 올려주세요.');}
+      }
+      const wb=XLSX.read(new Uint8Array(fr.result),{type:'array'});
+      // 시트가 여러 개면(피벗·상세 시트 포함) '센터' 헤더가 있는 원본 시트 중 행이 가장 많은 것을 사용
+      let rows=null,best=-1,lastErr=null;
+      for(const nm of wb.SheetNames){
+        const r=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,defval:null,raw:true});
+        try{colIdx(r);if(r.length>best){best=r.length;rows=r;}}catch(e){lastErr=e;}
+      }
+      if(!rows)throw lastErr||new Error('원본 데이터 시트를 찾지 못했습니다.');
+      const snap=aggregate(rows,file.name);
+      if(!snap.rows)throw new Error('데이터 행이 없습니다.');
+      state.snaps=[snap,...state.snaps.filter(s=>s.id!==snap.id)].sort((a,b)=>(b.asof??0)-(a.asof??0)).slice(0,20);
+      state.cur=snap.id; state.day='last'; save();
+      setMsg(`${fT(tzConv(snap.asof,'PT'))} PT 추출본 · ${fmt(snap.rows)}행`,'ok');
+      location.hash='report'; route();
+    }catch(err){setMsg('파일을 읽지 못했습니다. '+err.message,'bad');}
+  };
+  fr.onerror=()=>setMsg('파일을 여는 중 오류가 발생했습니다.','bad');
+  fr.readAsArrayBuffer(file);
+}
+
+function renderUpload(){
+  const b=$('histBody');
+  if(!state.snaps.length){b.innerHTML=`<tr><td colspan="7" class="empty">올린 파일이 없습니다</td></tr>`;return;}
+  const tot=items=>{let q=0,dq=0;for(const x of items){q+=x.q;dq+=x.dq;}return {q,dq,p:q-dq};};
+  b.innerHTML=state.snaps.map(s=>{
+    const m=buildModel(s,'PT'), U=tot(m.USE.items), S=tot(m.STORE.items);
+    return `<tr><td><b>${fT(m.asof)}</b></td><td style="color:var(--muted);font-size:.78rem">${esc(s.fname)}</td>
+      <td>${fmt(U.dq)} / ${fmt(U.q)}건 <span class="pill ${pc(pct(U.dq,U.q))}">${pctT(U.dq,U.q)}</span></td>
+      <td>${fmt(S.dq)} / ${fmt(S.q)} <span class="pill ${pc(pct(S.dq,S.q))}">${pctT(S.dq,S.q)}</span></td>
+      <td class="crit">${fmt(U.p)}건</td><td class="crit">${fmt(S.p)} pcs</td>
+      <td><button class="btn sm line" data-open="${esc(s.id)}">조회</button> <button class="btn sm danger" data-del="${esc(s.id)}">삭제</button></td></tr>`;
+  }).join('');
+  b.querySelectorAll('[data-open]').forEach(x=>x.onclick=()=>{state.cur=x.dataset.open;state.day='last';save();location.hash='report';route();});
+  b.querySelectorAll('[data-del]').forEach(x=>x.onclick=()=>{
+    if(!x.classList.contains('armed')){x.classList.add('armed');x.textContent='삭제 확인';
+      setTimeout(()=>{if(x.isConnected){x.classList.remove('armed');x.textContent='삭제';}},3000);return;}
+    state.snaps=state.snaps.filter(s=>s.id!==x.dataset.del); if(state.cur===x.dataset.del)state.cur=state.snaps[0]?.id||null;
+    save(); renderUpload(); setHdr();
+  });
+}
+
+/* ===== 실적 조회 ===== */
+$('snapSel').onchange=e=>{state.cur=e.target.value;state.day='last';save();route();};
+$('daySel').onchange=e=>{const v=e.target.value;state.day=v==='last'?v:+v;renderReport();};
+['PT','KST'].forEach(z=>$('tz-'+z).onclick=()=>{
+  if(state.tz===z)return;
+  const keep=typeof state.day==='number'?dKey(state.day):null;
+  state.tz=z; save();
+  const s=curSnap(); if(keep&&s){const m=model(s);const hit=m.days.find(d=>dKey(d)===keep);state.day=hit!=null?hit:'last';}
+  route();});
+['USE','STORE'].forEach(k=>$('sw-'+k).onclick=()=>{state.type=k;save();renderTypeViews(curSnap());});
+['pend','ord','ship'].forEach(k=>$('hm-'+k).onclick=()=>{state.hm=k;save();const s=curSnap();if(s)renderHeat(model(s),state.type);});
+
+function renderReport(){
+  const s=curSnap();
+  $('noData').hidden=!!s; $('report').hidden=!s; if(!s)return;
+  state.cur=s.id;
+  const m=model(s), Ds=dayOf(m);
+  ['PT','KST'].forEach(z=>$('tz-'+z).setAttribute('aria-pressed',String(z===state.tz)));
+  $('snapSel').innerHTML=state.snaps.map(x=>`<option value="${esc(x.id)}"${x.id===s.id?' selected':''}>${fT(tzConv(x.asof,state.tz))} ${state.tz}</option>`).join('');
+  $('daySel').innerHTML=[...m.days].reverse().map(d=>`<option value="${d===m.lastDay?'last':d}"${d===Ds?' selected':''}>${fDayW(d)}${d===m.lastDay?' · 최신':''}</option>`).join('');
+  $('snapMeta').textContent=`${s.fname} · ${fmt(s.rows)}행 · ${s.hasShort?'결품 열 반영':'결품 열 없음'} · ${state.tz}`;
+  renderTop(m);
+  renderTypeViews(s);
+  renderRef(m);
+}
+
+/* ===== ① CBE 출고실적 (당일 · 누적) ===== */
+let RPT=null;
+function topNums(m,k,C){
+  const {carry0,rows}=dailyRows(m[k].items,C.S,C.E,m.lastDay), r=rows.find(x=>x.t===C.Ds)||{o:0,s:0,x:0,tp:0,co:0,cs:0,cx:0,rem:carry0,crem:carry0};
+  let pD=planOf(k,C.Ds), pC=0, pN=0; for(let t=C.S;t<=C.Ds;t+=DAY){const p=planOf(k,t);if(p!=null){pC+=p;pN++;}}
+  return {carry0,r,pD,pC:pN?pC:null};
+}
+function kcell(cls,l,v,u,sub,c){return `<div class="kc ${cls}"><div class="l">${l}</div><div class="v">${v}${u?`<small>${u}</small>`:''}</div><div class="s">${sub||'&nbsp;'}</div></div>`;}
+function pctSub(a,p,c){if(!(p>0))return '계획 없음';const v=a/p*100;
+  return `<span class="pct">${v.toFixed(1)}%</span><span class="bar" style="--c:${c}"><i style="width:${Math.min(v,100)}%"></i></span>`;}
+function renderTop(m){
+  const C=evCtx(m), ev=state.ev.trim(), u='건';
+  if(document.activeElement!==$('evName'))$('evName').value=state.ev;
+  $('evStart').value=dKey(C.S0); $('evEnd').value=dKey(C.E0);
+  const title=`■ CBE 출고실적(${ev?ev+' ':''}${C.pre?'행사 전':C.nth+'일차'}) _ ${C.closed?'마감':fHM(m.asof)+' 현재'}`;
+  $('rTitle').textContent=title;
+  const U=topNums(m,'USE',C), r=U.r;
+  const dlab=`<div class="rl r1"><b>당일</b><span>${fDayW(C.Ds)}</span></div>`, clab=`<div class="rl"><b>누적</b><span>${fDay(C.S)}~${fDay(C.Ds)}</span></div>`;
+  $('kUse').innerHTML=
+    dlab+
+    `<div class="r1">${kcell('plan','계획',U.pD!=null?fmt(U.pD):'—',U.pD!=null?u:'',fDayW(C.Ds))}</div>`+
+    `<div class="r1">${kcell('ord','주문',fmt(r.o),u,pctSub(r.o,U.pD,'var(--oline)'))}</div>`+
+    `<div class="r1">${kcell('ship','출고 실적',fmt(r.s),u,pctSub(r.s,U.pD,'var(--act)'))}</div>`+
+    `<div class="r1">${kcell('cxl','결품(고객취소)',fmt(r.x),u,'')}</div>`+
+    `<div class="r1">${kcell('rem','당일 수신 잔여',fmt(r.tp),u,`${fDay(C.Ds)} 수신분 중 미처리`)}</div>`+
+    clab+
+    `<div>${kcell('plan','계획',U.pC!=null?fmt(U.pC):'—',U.pC!=null?u:'',`${Math.round((C.Ds-C.S)/DAY)+1}일 합계`)}</div>`+
+    `<div>${kcell('ord','주문',fmt(r.co),u,pctSub(r.co,U.pC,'var(--oline)'))}</div>`+
+    `<div>${kcell('ship','출고 실적',fmt(r.cs),u,pctSub(r.cs,U.pC,'var(--act)'))}</div>`+
+    `<div>${kcell('cxl','결품(고객취소)',fmt(r.cx),u,'')}</div>`+
+    `<div>${kcell('rem','잔여',fmt(r.rem),u,`이월 ${fmt(U.carry0)} + 주문 − 출고 − 결품`)}</div>`;
+  const S=topNums(m,'STORE',C), q=S.r;
+  $('kStore').innerHTML=
+    dlab+
+    `<div class="r1">${kcell('ord','주문',fmt(q.o),'pcs','')}</div><div class="r1">${kcell('ship','출고 실적',fmt(q.s),'pcs','')}</div>`+
+    `<div class="r1">${kcell('cxl','결품(고객취소)',fmt(q.x),'pcs','')}</div><div class="r1">${kcell('rem','당일 수신 잔여',fmt(q.tp),'pcs','')}</div>`+
+    clab+`<div>${kcell('ord','주문',fmt(q.co),'pcs','')}</div><div>${kcell('ship','출고 실적',fmt(q.cs),'pcs','')}</div>`+
+    `<div>${kcell('cxl','결품(고객취소)',fmt(q.cx),'pcs','')}</div>`+
+    `<div>${kcell('rem','잔여',fmt(q.rem),'pcs',`이월 ${fmt(S.carry0)} + 주문 − 출고 − 결품`)}</div>`;
+  $('rNote').textContent=`*주문 = TCS 수신 · 출고 실적 = 그날 출고 완료(이월분 포함) · 결품(고객취소) = 결품량으로 완결된 건 · 잔여 = 원주문 − 결품 − 출고 · ${state.tz}`;
+  $('rNote2').innerHTML=(m.hasShort?'':'<b style="color:var(--crit)">이 추출본에는 결품 열이 없어 결품이 잔여로 잡힙니다. 결품 열이 있는 파일을 올려주세요.</b> ')+(C.pre?`기준일이 행사 시작(${fDay(C.S0)}) 전입니다`:'');
+  RPT={title,U,S,C};
+}
+function copyText(tsv,msgId,tbl){
+  const done=ok=>{$(msgId).textContent=ok?'복사됨':'복사가 막혀 있어 표를 선택했습니다. Ctrl+C로 복사하세요';setTimeout(()=>$(msgId).textContent='',3000);};
+  const fallback=()=>{if(!tbl)return done(false);const r=document.createRange();r.selectNode(tbl);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);done(false);};
+  try{navigator.clipboard.writeText(tsv).then(()=>done(true),fallback);}catch(e){fallback();}
+}
+$('copyRpt').onclick=()=>{
+  if(!RPT)return; const {title,U,S}=RPT, r=U.r, q=S.r, pv=v=>v!=null?fmt(v):'', pp=(a,p)=>p>0?(a/p*100).toFixed(1)+'%':'';
+  copyText([title+' (USE 건)',['구분','','계획','실적','진척율'].join('\t'),
+    ['당일','주문',pv(U.pD),fmt(r.o),pp(r.o,U.pD)].join('\t'),['','출고',pv(U.pD),fmt(r.s),pp(r.s,U.pD)].join('\t'),['','결품(고객취소)','',fmt(r.x),''].join('\t'),
+    ['누적','주문',pv(U.pC),fmt(r.co),pp(r.co,U.pC)].join('\t'),['','출고',pv(U.pC),fmt(r.cs),pp(r.cs,U.pC)].join('\t'),['','결품(고객취소)','',fmt(r.cx),''].join('\t'),
+    ['잔여','','',fmt(r.rem),''].join('\t'),'',
+    '매장 (pcs)',['구분','주문','출고','결품(고객취소)','잔여'].join('\t'),['당일',fmt(q.o),fmt(q.s),fmt(q.x),fmt(q.tp)].join('\t'),['누적',fmt(q.co),fmt(q.cs),fmt(q.cx),fmt(q.rem)].join('\t')
+  ].join('\n'),'copyMsg',null);
+};
+$('evName').addEventListener('input',e=>{state.ev=e.target.value;save();const s=curSnap();if(s)renderTop(model(s));});
+$('evStart').addEventListener('change',e=>{state.start=e.target.value||null;save();renderReport();});
+$('evEnd').addEventListener('change',e=>{state.end=e.target.value||null;save();renderReport();});
+
+/* ===== ②~④ 유형별 ===== */
+function renderTypeViews(s){
+  if(!s)return;
+  const k=state.type, m=model(s), T=TYPES[k], C=evCtx(m);
+  ['USE','STORE'].forEach(x=>$('sw-'+x).setAttribute('aria-pressed',String(x===k)));
+  const plan=planOf(k,C.Ds);
+  $('chartNote').textContent=`${T.name} · ${T.u} · ${fDayW(C.Ds)} 00:00~${C.closed?'24:00':fHM(m.asof)} ${state.tz}`;
+  $('chartLegend').innerHTML=`<span><i class="sq" style="--c:color-mix(in srgb,var(--faint) 30%,transparent)"></i>이월 (00:00 기준 잔여)</span><span><i style="--c:var(--oline)"></i>이월 + 당일 주문</span><span><i style="--c:var(--act)"></i>출고 + 결품</span><span><i class="band"></i>두 선 사이 = 잔여</span>`+
+    (plan>0?`<span><i class="dash" style="--c:var(--muted)"></i>당일 계획 ${fmt(plan)}</span>`:'');
+  drawChart(m,m[k].items,C.Ds,T,plan);
+  renderDaily(m,k,C);
+  renderFifo(m,k,C);
+}
+
+/* ③ 일자별 계획·주문·실적 */
+let DAYROWS=null;
+const achT=(a,p,fut)=>fut||!(p>0)?'':(a/p*100).toFixed(1)+'%';
+function renderDaily(m,k,C,full=true){
+  const T=TYPES[k], u=T.u, {rows}=dailyRows(m[k].items,C.S,C.E,m.lastDay);
+  rows.forEach(r=>{r.p=planOf(k,r.t);r.pre=r.t<C.S0;});
+  $('dayNote').textContent=`${T.name} · ${u} · ${fDay(C.S0)}~${fDay(C.E0)} · ${state.tz}`;
+  drawRChart(rows,C,T);
+  if(full){
+    $('dBody').innerHTML=rows.map(r=>{const dk=dKey(r.t), wd=d_(r.t).getUTCDay();
+      return `<tr class="${r.t===C.Ds?'today':''} ${r.fut?'future':''}" data-d="${dk}">
+        <td><b>${fDay(r.t)}</b></td><td class="${wd===0?'sun':wd===6?'sat':''}">${WD[wd]}</td>
+        <td><input class="lab" data-f="l" value="${esc(state.labels[dk]||'')}" placeholder="—" aria-label="${fDay(r.t)} 구분"></td>
+        <td><input data-f="p" inputmode="numeric" value="${r.p!=null?fmt(r.p):''}" placeholder="입력" aria-label="${fDay(r.t)} 계획"></td>
+        <td>${r.fut?'':fmt(r.o)}</td><td id="po-${dk}">${achT(r.o,r.p,r.fut)}</td>
+        <td>${r.fut?'':fmt(r.s)}</td><td id="ps-${dk}">${achT(r.s,r.p,r.fut)}</td>
+        <td>${r.fut?'':fmt(r.x)}</td><td class="${r.fut?'':'crit'}">${r.fut?'':fmt(r.rem)}</td></tr>`;}).join('');
+  }else rows.forEach(r=>{const dk=dKey(r.t),a=$('po-'+dk),b=$('ps-'+dk);if(a)a.textContent=achT(r.o,r.p,r.fut);if(b)b.textContent=achT(r.s,r.p,r.fut);});
+  const miss=rows.filter(r=>r.p==null).length;
+  $('planNote').textContent=miss?`계획 미입력 ${miss}일`:'';
+  DAYROWS={rows,k};
+}
+function drawRChart(rows,C,T){
+  // 일자별 막대 3개: 계획(회색) · 주문(보라) · 출고 실적(노랑, 계획 대비 %)
+  const el=$('rChart'), W=Math.max(640,Math.round(el.parentElement.clientWidth||900)), H=300, pl=16, pr=16, pt=44, pb=40;
+  el.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const n=rows.length, slot=(W-pl-pr)/n, gap=3, bw=Math.min(26,(slot-16)/3-gap), by=H-pb, full=slot>=118;
+  const max=Math.max(1,...rows.flatMap(r=>[r.p||0,r.fut?0:r.s,r.fut?0:r.o]))*1.12, Y=v=>by-(by-pt)*v/max;
+  const bar=(x,v,fill,op)=>`<rect x="${x.toFixed(1)}" y="${Y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,by-Y(v)).toFixed(1)}" rx="3" fill="${fill}"${op?` fill-opacity="${op}"`:''}/>`;
+  const lab=(x,v,txt,fill,dy=5,w=800)=>`<text x="${(x+bw/2).toFixed(1)}" y="${(Y(v)-dy).toFixed(1)}" text-anchor="middle" class="rl" style="fill:${fill};font-weight:${w}">${txt}</text>`;
+  let g='';
+  rows.forEach((r,i)=>{
+    const cx=pl+slot*(i+.5), wd=d_(r.t).getUTCDay(), x0=cx-1.5*bw-gap, x1=cx-bw/2, x2=cx+bw/2+gap;
+    if(r.t===C.Ds)g+=`<rect x="${pl+slot*i+2}" y="6" width="${slot-4}" height="${by-6}" fill="var(--accent)" fill-opacity=".06" rx="4"/>`;
+    if(r.p>0){g+=bar(x0,r.p,'var(--faint)','.6'); if(full||r.fut)g+=lab(x0,r.p,fmt(r.p),'var(--muted)');}
+    if(!r.fut){
+      g+=bar(x1,r.o,'var(--oline)'); if(full)g+=lab(x1,r.o,fmt(r.o),'var(--oline)');
+      const ok=r.p>0;
+      g+=bar(x2,r.s,'var(--act)')+lab(x2,r.s,fmt(r.s),'var(--fg)',ok?18:5);
+      if(ok)g+=lab(x2,r.s,`(${(r.s/r.p*100).toFixed(1)}%)`,'var(--muted)',5,600);
+    }
+    g+=`<text x="${cx}" y="${by+16}" text-anchor="middle" class="ax" style="font-weight:700">${fDay(r.t)}</text>`+
+      `<text x="${cx}" y="${by+30}" text-anchor="middle" class="ax" style="${wd===0?'fill:var(--crit)':wd===6?'fill:var(--accent)':''}">${WD[wd]}</text>`;
+  });
+  g+=`<line x1="${pl}" x2="${W-pr}" y1="${by}" y2="${by}" stroke="var(--border)"/>`;
+  el.innerHTML=g;
+  $('rLegend').innerHTML=`<span><i class="sq" style="--c:var(--faint)"></i>계획</span><span><i class="sq" style="--c:var(--oline)"></i>주문</span><span><i class="sq" style="--c:var(--act)"></i>출고 실적 (계획 대비 %)</span>`;
+}
+function putPlan(dk,f,raw){
+  if(f==='l'){const v=String(raw).trim(); if(v)state.labels[dk]=v; else delete state.labels[dk]; return;}
+  const key=state.type+'|'+dk, v=String(raw).replace(/[^\d]/g,''), p={...(state.plans[key]||{})};
+  if(v==='')delete p.p; else p.p=+v;
+  if(!Object.keys(p).length)delete state.plans[key]; else state.plans[key]=p;
+}
+const reDaily=(full)=>{const s=curSnap();if(!s)return;const m=model(s),C=evCtx(m);renderDaily(m,state.type,C,full);renderTop(m);
+  const plan=planOf(state.type,C.Ds);drawChart(m,m[state.type].items,C.Ds,TYPES[state.type],plan);};
+$('dBody').addEventListener('input',e=>{const el=e.target,f=el.dataset.f,dk=el.closest('tr')?.dataset.d;if(!f||!dk)return;putPlan(dk,f,el.value);save();reDaily(false);});
+$('dBody').addEventListener('focusout',e=>{const el=e.target;if(el.dataset.f==='p'){const n=String(el.value).replace(/[^\d]/g,'');el.value=n?fmt(+n):'';}});
+$('dBody').addEventListener('paste',e=>{const el=e.target,f=el.dataset.f;if(!f)return;
+  const lines=((e.clipboardData||window.clipboardData)?.getData('text')||'').split(/\r?\n/).filter(x=>x.trim()!=='');
+  if(lines.length<2)return; e.preventDefault();
+  let tr=el.closest('tr'); for(const line of lines){if(!tr)break;putPlan(tr.dataset.d,f,line.split('\t')[0]);tr=tr.nextElementSibling;}
+  save();reDaily(true);});
+$('copyDay').onclick=()=>{
+  if(!DAYROWS)return; const {rows,k}=DAYROWS;
+  copyText([`일자별 계획 · 주문 · 실적 (${TYPES[k].name} ${TYPES[k].u})`,['일자','요일','구분','계획','주문','주문/계획','출고 실적','출고/계획','결품(고객취소)','잔여'].join('\t'),
+    ...rows.map(r=>[fDay(r.t),WD[d_(r.t).getUTCDay()],state.labels[dKey(r.t)]||'',r.p!=null?fmt(r.p):'',r.fut?'':fmt(r.o),achT(r.o,r.p,r.fut),
+      r.fut?'':fmt(r.s),achT(r.s,r.p,r.fut),r.fut?'':fmt(r.x),r.fut?'':fmt(r.rem)].join('\t'))].join('\n'),'copyMsg2',$('dtbl'));
+};
+
+/* ④ 미출고 관리 */
+// 처리율 = (출고 + 결품) ÷ 주문
+function rateCell(r){const p=pct(r.ship+(r.xq||0),r.ord);
+  return `<span class="rbar"><span class="bar" style="--c:${p>=95?'var(--good)':p>0?'var(--warn)':'var(--crit)'}"><i style="width:${Math.min(p,100)}%"></i></span>${p.toFixed(0)}%</span>`;}
+function bRow(r,first,label,cls=''){
+  return `<tr class="${r.t===first?'oldest':''} ${cls}"><td>${label}</td><td>${fmt(r.ord)}</td><td>${fmt(r.ship)}</td><td>${r.xq?fmt(r.xq):'—'}</td>
+    <td class="${r.pend?'crit':''}">${fmt(r.pend)}</td><td class="${r.long?'long':''}">${r.long?fmt(r.long):'—'}</td>
+    <td>${rateCell(r)}</td></tr>`;}
+function renderFifo(m,k,C){
+  const T=TYPES[k], u=T.u, items=m[k].items, asof=m.asof;
+  const D=buckets(items,m.isLong,db), H=buckets(items,m.isLong,hb);
+  const oF=oldestPend(items,m.isLong,false), oL=oldestPend(items,m.isLong,true);
+  const longAmt=D.rows.reduce((a,r)=>a+r.long,0), L=m[k].long;
+  const {carry0,rows}=dailyRows(items,C.S0,Math.max(C.S0,m.lastDay),m.lastDay), last=rows[rows.length-1];
+  const crem=last?last.crem:carry0;
+  $('fifoNote').textContent=`${T.name} · ${fT(asof)} ${state.tz} 현재`;
+  $('fifoCards').innerHTML=
+    `<div class="fc" style="--fcc:${crem?'var(--warn)':'var(--good)'}"><div class="l">행사 전 이월 잔여</div><div class="v">${fmt(carry0)} → ${fmt(crem)} ${u}</div>
+      <div class="s">${fDay(C.S0)} 00:00 시작 → 현재 · ${fmt(carry0-crem)}${u} 처리</div></div>`+
+    `<div class="fc" style="--fcc:var(--warn)"><div class="l">가장 오래된 미출고 (D+1 이내)</div><div class="v">${oF!=null?fT(oF):'없음'}</div>
+      <div class="s">${oF!=null?`경과 ${dur(asof-oF)}`:'D+1 이내 잔여 없음'}</div></div>`+
+    `<div class="fc" style="--fcc:${D.missAmt?'var(--warn)':'var(--good)'}"><div class="l">선입선출 미준수</div><div class="v">${fmt(D.missAmt)} ${u}</div>
+      <div class="s">${D.missAmt?`${fDay(D.first)} 잔여가 남은 채 이후 수신분 출고`:'수신일 순서대로 출고'}</div></div>`+
+    `<div class="fc" style="--fcc:${longAmt?'var(--crit)':'var(--good)'}"><div class="l">장기 잔여 (D+2 이상)</div><div class="v">${fmt(longAmt)} ${u}</div>
+      <div class="s">${longAmt?`${fmt(L.length)}건 · 최장 ${dur(asof-oL)}`:'없음'}</div></div>`;
+  // 일자별 잔여 흐름 (처리일 기준): 전일 잔여 + 주문 − 출고 − 결품 = 잔여
+  if(!m.days.length)$('ledBody').innerHTML=`<tr><td colspan="7" class="empty">주문이 없습니다</td></tr>`;
+  else{
+    const LG=dailyRows(items,m.days[0],m.lastDay,m.lastDay); let prev=LG.carry0;
+    const lr=LG.rows.map(r=>{const o={...r,prev};prev=r.rem;return o;});
+    const sum=lr.reduce((a,r)=>({o:a.o+r.o,s:a.s+r.s,x:a.x+r.x}),{o:0,s:0,x:0}), endRem=lr.length?lr[lr.length-1].rem:LG.carry0;
+    const pr=(d,b)=>{const p=pct(d,b);return `<span class="rbar"><span class="bar" style="--c:${p>=95?'var(--good)':p>0?'var(--warn)':'var(--crit)'}"><i style="width:${Math.min(p,100)}%"></i></span>${p.toFixed(0)}%</span>`;};
+    $('ledBody').innerHTML=[...lr].reverse().map(r=>{const ok=r.prev+r.o-r.s-r.x===r.rem;
+      return `<tr class="${r.t===C.Ds?'today':''} ${r.t<C.S0?'pre':''}"><td><b>${fDayW(r.t)}</b>${r.t<C.S0?' <span class="pill mute">행사 전</span>':''}</td>
+        <td>${fmt(r.prev)}</td><td>${fmt(r.o)}</td><td>${fmt(r.s)}</td><td>${r.x?fmt(r.x):'—'}</td>
+        <td class="${r.rem?'crit':''}">${fmt(r.rem)}${ok?'':' ⚠'}</td><td>${pr(r.s+r.x,r.prev+r.o)}</td></tr>`;}).join('')
+      +`<tr class="tot"><td>합계 (${fDay(m.days[0])}~)</td><td>${fmt(LG.carry0)}</td><td>${fmt(sum.o)}</td><td>${fmt(sum.s)}</td><td>${fmt(sum.x)}</td><td class="crit">${fmt(endRem)}</td><td>${pr(sum.s+sum.x,LG.carry0+sum.o)}</td></tr>`;
+  }
+  if(!D.rows.length)$('rcvBody').innerHTML=`<tr><td colspan="7" class="empty">주문이 없습니다</td></tr>`;
+  else{
+    const tot=D.rows.reduce((x,r)=>({ord:x.ord+r.ord,ship:x.ship+r.ship,xq:x.xq+r.xq,pend:x.pend+r.pend,long:x.long+r.long}),{ord:0,ship:0,xq:0,pend:0,long:0});
+    $('rcvBody').innerHTML=[...D.rows].reverse().map(r=>bRow(r,D.first,`<b>${fDayW(r.t)}</b> <span style="color:var(--faint);font-size:.74rem">D+${Math.round((m.lastDay-r.t)/DAY)}</span>${r.t<C.S0?' <span class="pill mute">이월</span>':''}`,r.t<C.S0?'pre':'')).join('')
+      +`<tr class="tot"><td>합계</td><td>${fmt(tot.ord)}</td><td>${fmt(tot.ship)}</td><td>${fmt(tot.xq)}</td><td class="crit">${fmt(tot.pend)}</td><td class="${tot.long?'crit':''}">${fmt(tot.long)}</td><td>${rateCell(tot)}</td></tr>`;
+  }
+  $('hourBody').innerHTML=H.rows.length?[...H.rows].reverse().map(r=>bRow(r,H.first,fH(r.t))).join(''):`<tr><td colspan="7" class="empty">주문이 없습니다</td></tr>`;
+  $('longNote').textContent=`${fDay(m.lastDay-2*DAY)} 이전 수신 · 잔여 있는 전표 · 오래된 순${L.length>=3000?' · 상위 3,000건':''}`;
+  $('longBody').innerHTML=L.length?L.map(o=>`<tr><td class="mono">${esc(o.slip)}</td><td>${esc(o.code)}</td><td>${fT(o.t)}</td>
+      <td>D+${Math.round((m.lastDay-db(o.t))/DAY)} · ${dur(asof-o.t)}</td><td>${fmt(o.L)}</td><td>${fmt(o.act)}</td><td>${fmt(o.pcs)}</td><td class="crit">${fmt(o.pend)}</td>
+      <td>${o.act?'<span class="pill warn">부분 출고</span>':'<span class="pill crit">미출고</span>'}</td></tr>`).join('')
+    :`<tr><td colspan="9" class="empty">장기 잔여가 없습니다</td></tr>`;
+  renderHeat(m,k);
+}
+
+/* ⑤ 참고 */
+function renderRef(m){
+  const C=evCtx(m), sk=m.sku;
+  // 러닝 SKU
+  if(!sk){$('skuNote').textContent='';$('skuBody').innerHTML=`<tr><td colspan="5" class="empty">파일을 다시 올리면 러닝 SKU가 표시됩니다</td></tr>`;}
+  else{
+    const pt=state.tz==='PT', base=pt?sk.bP:sk.bK, key=pt?['rP','sP']:['rK','sK'];
+    const dn=t=>Math.floor(t/DAY), d0=dn(C.S), d1=dn(Math.min(C.E,m.lastDay));
+    const cnt=(T,kk,a,b)=>skuCount(sk[T][kk],base,a,b);
+    let h='';
+    for(let d=d1;d>=d0;d--)h+=`<tr class="${d*DAY===C.Ds?'today':''}"><td><b>${fDayW(d*DAY)}</b></td><td>${fmt(cnt('U',key[0],d,d))}</td><td>${fmt(cnt('U',key[1],d,d))}</td><td>${fmt(cnt('S',key[0],d,d))}</td><td>${fmt(cnt('S',key[1],d,d))}</td></tr>`;
+    h+=`<tr class="tot"><td>기간 누적 (${fDay(C.S)}~)</td><td>${fmt(cnt('U',key[0],d0,d1))}</td><td>${fmt(cnt('U',key[1],d0,d1))}</td><td>${fmt(cnt('S',key[0],d0,d1))}</td><td>${fmt(cnt('S',key[1],d0,d1))}</td></tr>`;
+    h+=`<tr><td style="color:var(--muted)">현재 잔여 SKU</td><td colspan="2" class="crit" style="text-align:center">${fmt(sk.U.pend)}</td><td colspan="2" class="crit" style="text-align:center">${fmt(sk.S.pend)}</td></tr>`;
+    $('skuBody').innerHTML=h;
+    $('skuNote').textContent=`그날 주문·출고에 한 번이라도 나온 상품코드 수 · ${state.tz}`;
+  }
+  // 건당 OL · pcs (기준일 수신분)
+  const Ds=C.Ds, inD=t=>t>=Ds&&t<Ds+DAY;
+  $('olNote').textContent=`${fDayW(Ds)} 수신분`;
+  const row=(name,o,ol,pcs,cls='')=>`<tr class="${cls}"><td>${name}</td><td>${fmt(o)}</td><td>${fmt(ol)}</td><td>${fmt(pcs)}</td><td>${o?fmt1(ol/o):'—'}</td><td>${o?fmt1(pcs/o):'—'}</td></tr>`;
+  let uo=0,uol=0,up=0; for(const x of m.USE.items)if(inD(x.t)){uo+=x.q;uol+=x.OL;up+=x.pcs;}
+  const so=m.STORE.orders.filter(x=>inD(x.t)), sum=a=>a.reduce((z,x)=>({o:z.o+1,L:z.L+x.L,p:z.p+x.pcs}),{o:0,L:0,p:0}), S=sum(so);
+  let h=row('<span class="tag use">USE</span> FE',uo,uol,up)+row('<span class="tag store">매장</span> 전체',S.o,S.L,S.p);
+  const byC=new Map(); for(const x of so){if(!byC.has(x.c))byC.set(x.c,[]);byC.get(x.c).push(x);}
+  if(byC.size>1)for(const [c,a] of byC){const z=sum(a);h+=row(esc(m.codes[c]),z.o,z.L,z.p,'sub');}
+  $('olBody').innerHTML=h+row('합계',uo+S.o,uol+S.L,up+S.p,'tot');
+}
+function renderHeat(m,k){
+  const T=TYPES[k], key=state.hm, u=T.u, H=buckets(m[k].items,m.isLong,hb).rows;
+  ['pend','ord','ship'].forEach(x=>$('hm-'+x).setAttribute('aria-pressed',String(x===key)));
+  const lab={pend:'잔여',ord:'주문',ship:'출고'}[key], col={pend:'var(--crit)',ord:'var(--oline)',ship:'var(--good)'}[key];
+  $('heatNote').textContent=`${T.name} · ${lab} (${u}) · ${state.tz}`;
+  $('hlegend').innerHTML=`<span>빈칸 = 수신 없음</span>`+(key==='pend'?`<span style="color:var(--good)">0 = 전량 출고</span>`:'')+`<span>칸에 마우스를 올리면 주문·출고·잔여 표시</span>`;
+  if(!H.length){$('heat').innerHTML=`<tbody><tr><td class="empty">주문이 없습니다</td></tr></tbody>`;return;}
+  const days=new Map();
+  for(const r of H){const dk=db(r.t);if(!days.has(dk))days.set(dk,Array(24).fill(null));days.get(dk)[d_(r.t).getUTCHours()]=r;}
+  const max=Math.max(1,...H.map(r=>r[key]));
+  let h=`<thead><tr><th>수신일</th>`+Array.from({length:24},(_,i)=>`<th>${i}</th>`).join('')+`<th class="sum">${lab}</th></tr></thead><tbody>`;
+  for(const [dk,cells] of [...days].reverse()){
+    let sum=0;
+    h+=`<tr><td><b>${fDayW(dk)}</b></td>`+cells.map((r,hr)=>{
+      if(!r)return '<td class="c"></td>';
+      const v=r[key]; sum+=v;
+      const ttl=`${fDay(dk)} ${p2(hr)}시 수신 · 주문 ${fmt(r.ord)} · 출고 ${fmt(r.ship)} · 잔여 ${fmt(r.pend)} ${u}`;
+      if(!v)return `<td class="c ${key==='pend'?'z':''}" title="${ttl}" style="${key==='pend'?'':'color:var(--faint)'}">0</td>`;
+      return `<td class="c" title="${ttl}" style="background:color-mix(in srgb,${col} ${Math.round(14+50*(v/max))}%,transparent);font-weight:700">${fmt(v)}</td>`;
+    }).join('')+`<td class="sum" style="${key==='pend'&&sum?'color:var(--crit)':''}">${fmt(sum)}</td></tr>`;
+  }
+  $('heat').innerHTML=h+'</tbody>';
+}
+
+/* ② 당일 누적 주문·출고 차트 (두 선 사이 = 잔여, 점선 = 당일 계획) */
+let chartCtx=null;
+function drawChart(m,items,Ds,T,plan){
+  const el=$('combo'); $('tip').hidden=true;
+  const W=Math.max(640,Math.round(el.parentElement.clientWidth||900)), H=320, pl=60, pr=104, pt=20, pb=46;
+  el.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const asof=m.asof, P=seriesFor(items,Ds), endT=Math.min(Ds+DAY,asof);
+  const last=P[P.length-1]; if(endT>last.t)P.push({...last,t:endT,end:true});
+  const A=Ds, B=Ds+DAY, X=t=>pl+(Math.min(Math.max(t,A),B)-A)/(B-A)*(W-pl-pr);
+  const rawMax=Math.max(1,...P.map(p=>p.o),plan||0);
+  const mag=Math.pow(10,Math.floor(Math.log10(rawMax/4))), step=[1,2,2.5,5,10].map(v=>v*mag).find(v=>rawMax/v<=5)||mag*10;
+  const ymax=Math.ceil(rawMax/step)*step, Y=v=>pt+(H-pt-pb)*(1-v/ymax), by=Y(0), f1=v=>v.toFixed(1);
+  let g='';
+  for(let v=0;v<=ymax+1e-9;v+=step)g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${pl-8}" y="${Y(v)+4}" text-anchor="end" class="ax">${fmt(v)}</text>`;
+  if(plan>0)g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(plan)}" y2="${Y(plan)}" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="6 4"/>`+
+    `<text x="${W-pr+6}" y="${Y(plan)+4}" class="vl" style="fill:var(--muted)">계획 ${fmt(plan)}</text>`;
+  // 위 선 = 이월 + 당일 주문, 아래 선 = 출고 + 결품, 사이 = 잔여
+  const up=P.map((p,i)=>`${i?'L':'M'}${f1(X(p.t))} ${f1(Y(p.o))}`).join(' '), lo=P.map((p,i)=>`${i?'L':'M'}${f1(X(p.t))} ${f1(Y(p.done))}`).join(' ');
+  const band=up+' '+[...P].reverse().map(p=>`L${f1(X(p.t))} ${f1(Y(p.done))}`).join(' ')+' Z';
+  const c0=P[0].c;
+  if(c0>0)g+=`<rect x="${pl}" y="${Y(c0)}" width="${W-pl-pr}" height="${by-Y(c0)}" fill="var(--faint)" fill-opacity=".08"/>`+
+    `<line x1="${pl}" x2="${W-pr}" y1="${Y(c0)}" y2="${Y(c0)}" stroke="var(--faint)" stroke-dasharray="2 3"/>`+
+    `<text x="${pl+6}" y="${Y(c0)-5}" class="ax" style="font-weight:700">이월 ${fmt(c0)}</text>`;
+  g+=`<path d="${band}" fill="var(--crit)" fill-opacity=".14"/><path d="${lo}" fill="none" stroke="var(--act)" stroke-width="2.6" stroke-linejoin="round"/>`+
+     `<path d="${up}" fill="none" stroke="var(--oline)" stroke-width="2.4" stroke-linejoin="round"/>`;
+  for(let h=0;h<=24;h+=2){const tx=X(A+h*HOUR);g+=`<line x1="${tx}" x2="${tx}" y1="${by}" y2="${by+4}" stroke="var(--faint)"/><text x="${tx}" y="${by+17}" text-anchor="middle" class="ax">${p2(h%24)}:00</text>`;}
+  g+=`<text x="${pl}" y="${by+34}" class="axd">${fDayW(Ds)} ${state.tz}</text>`;
+  if(asof>A&&asof<B){const ax=X(asof);g+=`<line x1="${ax}" x2="${ax}" y1="${pt}" y2="${by}" stroke="var(--muted)" stroke-dasharray="3 3"/><text x="${ax-4}" y="${pt+10}" text-anchor="end" class="ax">현재 ${fHM(asof)}</text>`;}
+  const E=P[P.length-1], ex=X(E.t), yo=Y(E.o), ys=Y(E.done);
+  g+=`<line x1="${ex+4}" x2="${ex+4}" y1="${yo}" y2="${ys}" stroke="var(--crit)" stroke-width="2"/><circle cx="${ex}" cy="${yo}" r="4" fill="var(--oline)"/><circle cx="${ex}" cy="${ys}" r="4" fill="var(--act)"/>`;
+  const labs=[{t:`주문 ${fmt(E.r)}${E.c?` +이월 ${fmt(E.c)}`:''}`,y:yo,c:'var(--oline)'},{t:`잔여 ${fmt(E.rem)}`,y:(yo+ys)/2,c:'var(--crit)'},
+    {t:`출고 ${fmt(E.s)}${E.x?` +결품 ${fmt(E.x)}`:''}`,y:ys,c:'var(--fg)'}].map(l=>({...l,y:l.y+4})).sort((a,b)=>a.y-b.y);
+  for(let i=1;i<labs.length;i++)if(labs[i].y-labs[i-1].y<14)labs[i].y=labs[i-1].y+14;
+  const over=labs[labs.length-1].y-(by+4); if(over>0)labs.forEach(l=>l.y-=over);
+  const lx=Math.min(ex+12,W-pr+6); labs.forEach(l=>g+=`<text x="${lx}" y="${l.y}" class="vl" style="fill:${l.c}">${l.t}</text>`);
+  g+=`<line id="guide" x1="0" x2="0" y1="${pt}" y2="${by}" stroke="var(--fg)" stroke-opacity=".35" visibility="hidden"/>`;
+  el.innerHTML=g;
+  chartCtx={P,X,W,u:T.u};
+}
+function chartHover(e){
+  const c=chartCtx, tip=$('tip'); if(!c)return;
+  const el=$('combo'), r=el.getBoundingClientRect(), vx=(e.clientX-r.left)/r.width*c.W;
+  let best=null,bd=1e9; for(const p of c.P){const d=Math.abs(c.X(p.t)-vx);if(d<bd){bd=d;best=p;}}
+  if(!best||bd>60){chartLeave();return;}
+  const gx=c.X(best.t), gd=$('guide'); gd.setAttribute('x1',gx);gd.setAttribute('x2',gx);gd.setAttribute('visibility','visible');
+  tip.innerHTML=`<div class="t">${fT(best.t)} ${state.tz}</div><div class="r"><span>이월</span><b>${fmt(best.c)} ${c.u}</b></div>
+    <div class="r"><span>당일 주문</span><b>${fmt(best.r)} ${c.u}</b></div><div class="r"><span>출고</span><b>${fmt(best.s)} ${c.u}</b></div>
+    <div class="r"><span>결품(고객취소)</span><b>${fmt(best.x)} ${c.u}</b></div><div class="r"><span>잔여</span><b style="color:var(--crit)">${fmt(best.rem)} ${c.u}</b></div>`;
+  tip.hidden=false;
+  const card=$('chartCard').getBoundingClientRect(), px=r.left+gx/c.W*r.width-card.left, tw=tip.offsetWidth;
+  tip.style.left=Math.min(Math.max(8,px+12),card.width-tw-8)+'px'; tip.style.top='54px';
+}
+function chartLeave(){$('tip').hidden=true;const gd=$('guide');if(gd)gd.setAttribute('visibility','hidden');}
+$('combo').addEventListener('pointermove',chartHover);
+$('combo').addEventListener('pointerleave',chartLeave);
+let rz; window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{const s=curSnap();
+  if(s&&!$('report').hidden)renderTypeViews(s);},150);});
+
+load(); route();
+</script>
+
+<script>
+/* 접근 비밀번호: 브라우저에서만 확인하는 가림막 (원문 대신 SHA-256 해시 비교) */
+(function(){
+  const H='75992a5ac67ff644d3063976c2effd10bdd93fcc109798e3d5c1acf2e530d01a', el=id=>document.getElementById(id);
+  const open=()=>{document.documentElement.classList.remove('locked');const g=el('gate');if(g)g.remove();};
+  try{if(sessionStorage.getItem('whout-gate')===H)return open();}catch(e){}
+  const sha=async v=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');};
+  el('gateForm').addEventListener('submit',async e=>{
+    e.preventDefault(); const v=el('gatePw').value;
+    let h=''; try{h=await sha(v);}catch(err){el('gateMsg').textContent='이 브라우저에서는 확인할 수 없습니다. https 주소로 열어주세요.';return;}
+    if(h===H){try{sessionStorage.setItem('whout-gate',H);}catch(err){} open();}
+    else{el('gateMsg').textContent='비밀번호가 맞지 않습니다.';el('gatePw').value='';el('gatePw').focus();}
+  });
+  el('gatePw').focus();
+})();
+</script>
+</body>
+</html>
