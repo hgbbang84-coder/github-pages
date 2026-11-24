@@ -301,7 +301,7 @@
       <div class="cbe">
         <div class="cbe-head">
           <h2 id="rTitle">■ CBE 출고실적</h2>
-          <label>행사명 <input type="text" id="evName" maxlength="30" placeholder="행사명 입력"></label>
+          <label>행사명 <input type="text" id="evName" maxlength="30" placeholder="예: 2차 BF"></label>
           <label>기간 <input type="date" id="evStart" aria-label="행사 시작일"> ~ <input type="date" id="evEnd" aria-label="행사 종료일"></label>
           <button type="button" class="btn sm" id="copyRpt">보고 표 복사</button>
           <span class="copied" id="copyMsg" role="status"></span>
@@ -619,7 +619,9 @@ const k2t=s=>{const x=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return x?Date.UTC(
 const KEY='whout-dash-v4';
 const state={snaps:[],cur:null,type:'USE',hm:'pend',tz:'PT',day:'last',ev:'',start:null,end:null,plans:{},labels:{},mig:0};
 // 사진으로 받은 일자별 계획량 (USE, 건)
-const PLAN_SEED={};   // 공개 배포본: 계획량은 화면 ③ 표에서 입력
+const PLAN_SEED={'2026-11-23':[2835,'Black Friday'],'2026-11-24':[2521,'Black Friday'],'2026-11-25':[2678,'Black Friday'],
+  '2026-11-26':[2938,'Black Friday'],'2026-11-27':[3701,'Black Friday'],'2026-11-28':[2990,'Black Friday'],
+  '2026-11-29':[3031,'Black Friday'],'2026-11-30':[3850,'Cyber Monday']};
 function load(){let j={};try{j=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){}
   if(Array.isArray(j.snaps))state.snaps=j.snaps.filter(s=>s&&s.v===4);
   if(j.type==='STORE')state.type='STORE'; if(['pend','ord','ship'].includes(j.hm))state.hm=j.hm;
@@ -629,9 +631,14 @@ function load(){let j={};try{j=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}
   if(j.plans&&typeof j.plans==='object')state.plans=j.plans; if(j.labels&&typeof j.labels==='object')state.labels=j.labels;
   state.mig=j.mig|0;
   if(state.mig<2){   // 1회: PT 기준, 11/23~11/30 행사, 계획량 채우기 (이미 입력한 값은 유지)
-    state.tz='PT';
+    state.tz='PT'; state.start='2026-11-23'; state.end='2026-11-30'; if(!state.ev)state.ev='2차 BF';
     for(const [d,[p,l]] of Object.entries(PLAN_SEED)){const k='USE|'+d;if(!(state.plans[k]&&state.plans[k].p!=null))state.plans[k]={...(state.plans[k]||{}),p};if(!state.labels[d])state.labels[d]=l;}
     state.mig=2; save();
+  }
+  if(state.mig<3){   // 비어 있는 행사 기본값·계획량만 채움 (이미 입력한 값은 그대로)
+    if(!state.start)state.start='2026-11-23'; if(!state.end)state.end='2026-11-30'; if(!state.ev)state.ev='2차 BF';
+    for(const [d,[p,l]] of Object.entries(PLAN_SEED)){const k='USE|'+d;if(!(state.plans[k]&&state.plans[k].p!=null))state.plans[k]={...(state.plans[k]||{}),p};if(!state.labels[d])state.labels[d]=l;}
+    state.mig=3; save();
   }}
 function save(){
   const keep={snaps:state.snaps,cur:state.cur,type:state.type,hm:state.hm,tz:state.tz,ev:state.ev,start:state.start,end:state.end,
@@ -1067,6 +1074,12 @@ let rz; window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=
   if(s&&!$('report').hidden)renderTypeViews(s);},150);});
 
 load(); route();
+fetch('data.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(s=>{
+  if(!s||s.v!==4||state.snaps.some(x=>x.id===s.id))return;
+  state.snaps=[s,...state.snaps].sort((a,b)=>(b.asof??0)-(a.asof??0)).slice(0,20);
+  if(state.snaps[0].id===s.id){state.cur=s.id;state.day='last';}
+  save(); MC={key:null,m:null}; if(location.hash!=='#upload')location.hash='report'; route();
+}).catch(()=>{});
 </script>
 
 <script>
