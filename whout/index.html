@@ -1128,6 +1128,8 @@ function renderHeat(m,k){
 
 /* ===== 미출고 관리 탭: 미처리 요약 · 웨이브 추천 ===== */
 let WV={id:null,ex:new Set(),hist:[],cur:null};
+// claude.ai 안에서는 다운로드 기능을 플랫폼에서 받아옴 (없으면 null → 일반 다운로드)
+let DLC=null; try{window.claude?.use?.('downloads')?.then(x=>{DLC=x;}).catch(()=>{});}catch(e){}
 function renderPending(){
   const s=curSnap();
   $('noData2').hidden=!!s; $('pend').hidden=!s; if(!s)return;
@@ -1179,9 +1181,16 @@ function waveFile(r){const s=curSnap(), t=tzConv(s.asof,state.tz);
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-dl],[data-cp]'); if(!b||!$('view-pending').contains(b))return;
   const key=b.dataset.dl??b.dataset.cp, r=key==='cur'?WV.cur:WV.hist[+key]; if(!r)return; const f=waveFile(r);
-  if(b.dataset.dl!=null){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([f.text],{type:'text/plain;charset=utf-8'}));
-    a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
-    if($('wMsg'))$('wMsg').textContent=`${f.name} 저장 · 안 받아지면 복사를 쓰세요`;}
+  const msg=t=>{if($('wMsg'))$('wMsg').textContent=t;};
+  if(b.dataset.dl!=null){
+    if(DLC){   // claude.ai: 플랫폼 다운로드 기능 (확인 창이 뜰 수 있음)
+      DLC.save({filename:f.name,data:f.text}).then(()=>msg(`${f.name} 저장됨`))
+        .catch(err=>msg(err&&err.code==='declined'?'저장을 취소했습니다':err&&err.code==='rate_limited'?'잠시 후 다시 눌러주세요':'이 화면에서는 저장할 수 없습니다. 복사를 쓰세요'));
+    }else{     // 일반 브라우저(GitHub Pages)
+      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([f.text],{type:'text/plain;charset=utf-8'}));
+      a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+      msg(`${f.name} 저장 · 안 받아지면 복사를 쓰세요`);}
+  }
   else{copyText(f.text,$('wMsg')?'wMsg':'copyMsg2',null);}
 });
 /* ② 당일 누적 주문·출고 차트 (두 선 사이 = 잔여, 점선 = 당일 계획) */
