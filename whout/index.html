@@ -536,19 +536,23 @@ function ptOff(utc){const k=Math.floor(utc/HOUR);let o=offC.get(k);
 // KST 벽시계 → 선택한 시간대 벽시계 (PT는 서머타임 반영)
 function tzConv(kst,tz){if(kst==null)return null;if(tz!=='PT')return kst;const utc=kst-9*HOUR;return utc+ptOff(utc);}
 
+const STORE_CUTOFF_H=12;   // 매장 주문 마감 시각 (선택한 시간대 기준)
 function buildModel(s,tz){
   const cv=m=>tzConv(m*MIN,tz), asof=tzConv(s.asof,tz), lastDay=db(asof);
   const isLong=t=>db(t)<=lastDay-2*DAY;            // D+2 이상
   // 공통 항목: t=수신, d=처리 시각, q=주문, dq=완결(출고+결품), xq=결품(고객취소), pq=잔여
   const U=s.U.ev.map(([tm,dm,p,n,pcs,OL,x])=>({t:cv(tm),d:dm>=0?cv(dm):null,q:n,dq:dm>=0?n:0,xq:dm>=0&&x?n:0,pq:dm>=0?0:n,pp:p?n:0,pcs,OL}));
-  const S=s.S.ln.map(([c,tm,em,ord,shp,done,L,xp])=>({c,t:cv(tm),d:em>=0?cv(em):(done>0?asof:null),q:ord,dq:done,xq:xp||0,pq:ord-done,L}));
-  const SO=s.S.ord.map(([c,tm,dm,p,L,pcs])=>({c,t:cv(tm),d:dm>=0?cv(dm):null,p,L,pcs}));
-  const days=[...new Set([...U,...S].map(x=>db(x.t)))];
+  // 매장: 주문 마감 12:00 — 이후 수신분은 다음 날 0시 주문(그날 출고 대상)으로 봄
+  const scut=m=>{const t=cv(m);return t-db(t)>=STORE_CUTOFF_H*HOUR?db(t)+DAY:t;};
+  const S=s.S.ln.map(([c,tm,em,ord,shp,done,L,xp])=>({c,t:scut(tm),d:em>=0?cv(em):(done>0?asof:null),q:ord,dq:done,xq:xp||0,pq:ord-done,L}));
+  const SO=s.S.ord.map(([c,tm,dm,p,L,pcs])=>({c,t:scut(tm),d:dm>=0?cv(dm):null,p,L,pcs}));
+  const allDays=[...new Set([...U,...S].map(x=>db(x.t)))], maxDay=Math.max(lastDay,...allDays);
+  const days=allDays.filter(d=>d<=lastDay);
   if(!days.includes(lastDay))days.push(lastDay);
   days.sort((a,b)=>a-b);
   const UL=s.U.lc.map(([slip,tm,L,act,pcs,pend])=>({slip,code:'FE',t:cv(tm),L,act,pcs,pend})).filter(o=>isLong(o.t));
-  const SL=s.S.lc.map(([slip,c,tm,L,act,pcs,pend])=>({slip,code:s.codes[c],t:cv(tm),L,act,pcs,pend})).filter(o=>isLong(o.t));
-  return {tz,asof,lastDay,days,isLong,codes:s.codes,sku:s.sku,hasShort:!!s.hasShort,USE:{items:U,long:UL},STORE:{items:S,orders:SO,long:SL}};
+  const SL=s.S.lc.map(([slip,c,tm,L,act,pcs,pend])=>({slip,code:s.codes[c],t:scut(tm),L,act,pcs,pend})).filter(o=>isLong(o.t));
+  return {tz,asof,lastDay,maxDay,days,isLong,codes:s.codes,sku:s.sku,hasShort:!!s.hasShort,USE:{items:U,long:UL},STORE:{items:S,orders:SO,long:SL}};
 }
 // 일자별: 주문 = 그날 수신(시작일 이후), 출고 = 그날 출고 완료(이월분 포함), 결품 = 그날 고객취소로 완결
 //         잔여 = 이월 + 누적 주문 − 누적 출고 − 누적 결품
@@ -807,7 +811,7 @@ function renderTop(m){
     clab+`<div>${kcell('ord','주문',fmt(q.co),'pcs','')}</div><div>${kcell('ship','출고 실적',fmt(q.cs),'pcs','')}</div>`+
     `<div>${kcell('cxl','결품(고객취소)',fmt(q.cx),'pcs','')}</div>`+
     `<div>${kcell('rem','잔여',fmt(q.rem),'pcs',`이월 ${fmt(S.carry0)} + 주문 − 출고 − 결품`)}</div>`;
-  $('rNote').textContent=`*주문 = TCS 수신 · 출고 실적 = 그날 출고 완료(이월분 포함) · 결품(고객취소) = 결품량으로 완결된 건 · 잔여 = 원주문 − 결품 − 출고 · ${state.tz}`;
+  $('rNote').textContent=`*주문 = TCS 수신 · 출고 실적 = 그날 출고 완료(이월분 포함) · 결품(고객취소) = 결품량으로 완결된 건 · 잔여 = 원주문 − 결품 − 출고 · 매장 주문은 12:00 이후 수신분을 다음 날 주문으로 봄 · ${state.tz}`;
   $('rNote2').innerHTML=(m.hasShort?'':'<b style="color:var(--crit)">이 추출본에는 결품 열이 없어 결품이 잔여로 잡힙니다. 결품 열이 있는 파일을 올려주세요.</b> ')+(C.pre?`기준일이 행사 시작(${fDay(C.S0)}) 전입니다`:'');
   RPT={title,U,S,C};
 }
@@ -857,7 +861,7 @@ function renderDaily(m,k,C,full=true){
         <td><b>${fDay(r.t)}</b></td><td class="${wd===0?'sun':wd===6?'sat':''}">${WD[wd]}</td>
         <td><input class="lab" data-f="l" value="${esc(state.labels[dk]||'')}" placeholder="—" aria-label="${fDay(r.t)} 구분"></td>
         <td><input data-f="p" inputmode="numeric" value="${r.p!=null?fmt(r.p):''}" placeholder="입력" aria-label="${fDay(r.t)} 계획"></td>
-        <td>${r.fut?'':fmt(r.o)}</td><td id="po-${dk}">${achT(r.o,r.p,r.fut)}</td>
+        <td>${r.fut&&!r.o?'':fmt(r.o)}</td><td id="po-${dk}">${achT(r.o,r.p,r.fut&&!r.o)}</td>
         <td>${r.fut?'':fmt(r.s)}</td><td id="ps-${dk}">${achT(r.s,r.p,r.fut)}</td>
         <td>${r.fut?'':fmt(r.x)}</td><td class="${r.fut?'':'crit'}">${r.fut?'':fmt(r.rem)}</td></tr>`;}).join('');
   }else rows.forEach(r=>{const dk=dKey(r.t),a=$('po-'+dk),b=$('ps-'+dk);if(a)a.textContent=achT(r.o,r.p,r.fut);if(b)b.textContent=achT(r.s,r.p,r.fut);});
@@ -870,7 +874,7 @@ function drawRChart(rows,C,T){
   const el=$('rChart'), W=Math.max(640,Math.round(el.parentElement.clientWidth||900)), H=300, pl=16, pr=16, pt=44, pb=40;
   el.setAttribute('viewBox',`0 0 ${W} ${H}`);
   const n=rows.length, slot=(W-pl-pr)/n, gap=3, bw=Math.min(26,(slot-16)/3-gap), by=H-pb, full=slot>=118;
-  const max=Math.max(1,...rows.flatMap(r=>[r.p||0,r.fut?0:r.s,r.fut?0:r.o]))*1.12, Y=v=>by-(by-pt)*v/max;
+  const max=Math.max(1,...rows.flatMap(r=>[r.p||0,r.fut?0:r.s,r.o]))*1.12, Y=v=>by-(by-pt)*v/max;
   const bar=(x,v,fill,op)=>`<rect x="${x.toFixed(1)}" y="${Y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,by-Y(v)).toFixed(1)}" rx="3" fill="${fill}"${op?` fill-opacity="${op}"`:''}/>`;
   const lab=(x,v,txt,fill,dy=5,w=800)=>`<text x="${(x+bw/2).toFixed(1)}" y="${(Y(v)-dy).toFixed(1)}" text-anchor="middle" class="rl" style="fill:${fill};font-weight:${w}">${txt}</text>`;
   let g='';
@@ -878,6 +882,7 @@ function drawRChart(rows,C,T){
     const cx=pl+slot*(i+.5), wd=d_(r.t).getUTCDay(), x0=cx-1.5*bw-gap, x1=cx-bw/2, x2=cx+bw/2+gap;
     if(r.t===C.Ds)g+=`<rect x="${pl+slot*i+2}" y="6" width="${slot-4}" height="${by-6}" fill="var(--accent)" fill-opacity=".06" rx="4"/>`;
     if(r.p>0){g+=bar(x0,r.p,'var(--faint)','.6'); if(full||r.fut)g+=lab(x0,r.p,fmt(r.p),'var(--muted)');}
+    if(r.fut&&r.o>0){g+=bar(x1,r.o,'var(--oline)','.55'); if(full)g+=lab(x1,r.o,fmt(r.o),'var(--oline)');}
     if(!r.fut){
       g+=bar(x1,r.o,'var(--oline)'); if(full)g+=lab(x1,r.o,fmt(r.o),'var(--oline)');
       const ok=r.p>0;
@@ -941,12 +946,12 @@ function renderFifo(m,k,C){
   // 일자별 잔여 흐름 (처리일 기준): 전일 잔여 + 주문 − 출고 − 결품 = 잔여
   if(!m.days.length)$('ledBody').innerHTML=`<tr><td colspan="7" class="empty">주문이 없습니다</td></tr>`;
   else{
-    const LG=dailyRows(items,m.days[0],m.lastDay,m.lastDay); let prev=LG.carry0;
+    const LG=dailyRows(items,m.days[0],m.maxDay,m.lastDay); let prev=LG.carry0;
     const lr=LG.rows.map(r=>{const o={...r,prev};prev=r.rem;return o;});
     const sum=lr.reduce((a,r)=>({o:a.o+r.o,s:a.s+r.s,x:a.x+r.x}),{o:0,s:0,x:0}), endRem=lr.length?lr[lr.length-1].rem:LG.carry0;
     const pr=(d,b)=>{const p=pct(d,b);return `<span class="rbar"><span class="bar" style="--c:${p>=95?'var(--good)':p>0?'var(--warn)':'var(--crit)'}"><i style="width:${Math.min(p,100)}%"></i></span>${p.toFixed(0)}%</span>`;};
     $('ledBody').innerHTML=[...lr].reverse().map(r=>{const ok=r.prev+r.o-r.s-r.x===r.rem;
-      return `<tr class="${r.t===C.Ds?'today':''} ${r.t<C.S0?'pre':''}"><td><b>${fDayW(r.t)}</b>${r.t<C.S0?' <span class="pill mute">행사 전</span>':''}</td>
+      return `<tr class="${r.t===C.Ds?'today':''} ${r.t<C.S0?'pre':''}"><td><b>${fDayW(r.t)}</b>${r.t<C.S0?' <span class="pill mute">행사 전</span>':''}${r.fut?' <span class="pill warn">내일 출고 대상</span>':''}</td>
         <td>${fmt(r.prev)}</td><td>${fmt(r.o)}</td><td>${fmt(r.s)}</td><td>${r.x?fmt(r.x):'—'}</td>
         <td class="${r.rem?'crit':''}">${fmt(r.rem)}${ok?'':' ⚠'}</td><td>${pr(r.s+r.x,r.prev+r.o)}</td></tr>`;}).join('')
       +`<tr class="tot"><td>합계 (${fDay(m.days[0])}~)</td><td>${fmt(LG.carry0)}</td><td>${fmt(sum.o)}</td><td>${fmt(sum.s)}</td><td>${fmt(sum.x)}</td><td class="crit">${fmt(endRem)}</td><td>${pr(sum.s+sum.x,LG.carry0+sum.o)}</td></tr>`;
