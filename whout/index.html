@@ -536,7 +536,7 @@
         </section>
 
         <section>
-          <div class="shead"><h3>수신일 · 시간대별</h3><span class="note" id="heatNote"></span>
+          <div class="shead"><h3 id="heatTitle">수신일 · 시간대별</h3><span class="note" id="heatNote"></span>
             <span class="switch sm push" role="group" aria-label="표시 값">
               <button type="button" data-hm="pend" id="hm-pend">잔여</button>
               <button type="button" data-hm="ord" id="hm-ord">주문</button>
@@ -1199,6 +1199,8 @@ function renderHeat(m,k){
   const lab={pend:'잔여',ord:'주문',ship:'출고'}[key], col={pend:'var(--crit)',ord:'var(--oline)',ship:'var(--good)'}[key];
   $('heatNote').textContent=`${T.name} · ${lab} (${u}) · ${state.tz}`;
   $('hlegend').innerHTML=`<span>빈칸 = 수신 없음</span>`+(key==='pend'?`<span style="color:var(--good)">0 = 전량 출고</span>`:'')+`<span>칸에 마우스를 올리면 주문·출고·잔여 표시</span>`;
+  $('heatTitle').textContent=key==='ship'?'출고일 · 시간대별':'수신일 · 시간대별';
+  if(key==='ship'){renderHeatShip(m,k,T,u,col);return;}
   if(!H.length){$('heat').innerHTML=`<tbody><tr><td class="empty">주문이 없습니다</td></tr></tbody>`;return;}
   const days=new Map();
   for(const r of H){const dk=db(r.t);if(!days.has(dk))days.set(dk,Array(24).fill(null));days.get(dk)[d_(r.t).getUTCHours()]=r;}
@@ -1213,6 +1215,29 @@ function renderHeat(m,k){
       if(!v)return `<td class="c ${key==='pend'?'z':''}" title="${ttl}" style="${key==='pend'?'':'color:var(--faint)'}">0</td>`;
       return `<td class="c" title="${ttl}" style="background:color-mix(in srgb,${col} ${Math.round(14+50*(v/max))}%,transparent);font-weight:700">${fmt(v)}</td>`;
     }).join('')+`<td class="sum" style="${key==='pend'&&sum?'color:var(--crit)':''}">${fmt(sum)}</td></tr>`;
+  }
+  $('heat').innerHTML=h+'</tbody>';
+}
+// 출고 모드: 최종작업시간(처리 시각) 기준 출고일 · 시간대별 출고량 (결품 제외)
+function renderHeatShip(m,k,T,u,col){
+  $('heatNote').textContent=`${T.name} · 출고 (${u}) · 최종작업시간 기준 · ${state.tz}`;
+  $('hlegend').innerHTML=`<span>최종작업시간 기준 · 결품(고객취소) 제외</span><span>빈칸 = 기준 시각 이후</span><span>칸에 마우스를 올리면 출고량 표시</span>`;
+  const days=new Map();
+  for(const x of m[k].items){const v=(x.dq||0)-(x.xq||0); if(x.d==null||v<=0)continue;
+    const dk=db(x.d); if(!days.has(dk))days.set(dk,Array(24).fill(0)); days.get(dk)[d_(x.d).getUTCHours()]+=v;}
+  if(!days.size){$('heat').innerHTML=`<tbody><tr><td class="empty">출고가 없습니다</td></tr></tbody>`;return;}
+  const ks=[...days.keys()], d0=Math.min(...ks), d1=Math.max(...ks,m.lastDay);
+  for(let d=d0;d<=d1;d+=DAY)if(!days.has(d))days.set(d,Array(24).fill(0));
+  const nowH=d_(m.asof).getUTCHours(), max=Math.max(1,...[...days.values()].flat());
+  let h=`<thead><tr><th>출고일</th>`+Array.from({length:24},(_,i)=>`<th>${i}</th>`).join('')+`<th class="sum">출고</th></tr></thead><tbody>`;
+  for(const dk of [...days.keys()].sort((a,b)=>b-a)){
+    const cells=days.get(dk); let sum=0;
+    h+=`<tr><td><b>${fDayW(dk)}</b></td>`+cells.map((v,hr)=>{
+      if(dk>m.lastDay||(dk===m.lastDay&&hr>nowH))return '<td class="c"></td>';
+      sum+=v; const ttl=`${fDay(dk)} ${p2(hr)}시 출고 · ${fmt(v)} ${u}`;
+      if(!v)return `<td class="c" title="${ttl}" style="color:var(--faint)">0</td>`;
+      return `<td class="c" title="${ttl}" style="background:color-mix(in srgb,${col} ${Math.round(14+50*(v/max))}%,transparent);font-weight:700">${fmt(v)}</td>`;
+    }).join('')+`<td class="sum">${fmt(sum)}</td></tr>`;
   }
   $('heat').innerHTML=h+'</tbody>';
 }
