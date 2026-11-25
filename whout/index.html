@@ -227,6 +227,17 @@
   #fcSim td.lt{font-weight:900} #fcSim td.lt.bad{color:var(--crit)} #fcSim td.lt.ok{color:var(--good)}
   #fcRef td.c{text-align:center} #fcRef tr.off td{color:var(--faint)}
   .fcpick{margin-top:12px;display:grid;gap:8px}
+  .ffx{margin-top:12px} .ffx table{font-size:.82rem} .ffx th,.ffx td{text-align:right;white-space:nowrap}
+  .ffx th:first-child,.ffx td:first-child{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1;font-weight:800}
+  .ffx th small{display:block;font-weight:600;color:var(--faint);font-size:.7rem}
+  .ffx input{width:5.6em;text-align:right;font-weight:800;padding:4px 6px;border-style:dashed;background:transparent}
+  .ffx input.dflt{color:var(--muted);font-weight:600}
+  .ffx tr.ffin td{background:color-mix(in srgb,var(--warn) 16%,transparent)}
+  .ffx tr.ffin input{background:var(--surface);border-style:solid}
+  .ffx td.ok{color:var(--good);font-weight:800} .ffx td.bad{color:var(--crit);font-weight:800}
+  .ffx tr.sum td{font-weight:800;border-top:2px solid var(--border)} .ffx td.z{color:var(--faint)}
+  .ffx tr.carry td:first-child{color:var(--muted)}
+  .ffx h4{margin:0}
   .fcfx{margin-top:12px;border:1px solid var(--line,var(--surface-2));border-radius:8px;padding:10px 12px;display:grid;gap:8px;font-size:.82rem}
   .fcfx h4{margin:0;font-size:.84rem}.fcfx .row{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}.fcfx .ev{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:4px 0;border-top:1px dashed var(--surface-2)}
   .fcfx input[type=text]{width:4.5em}.fcfx .hint{color:var(--muted);font-size:.76rem}.fcfx .warn{color:var(--crit);font-weight:700}
@@ -541,6 +552,24 @@
             <tbody id="fcSim"></tbody>
           </table></div>
           <p class="fcfoot" id="fcSimFoot"></p>
+        </div>
+      </section>
+      <section>
+        <div class="shead"><h3>④ FIFO 리드타임 시뮬레이터 · 출고량만 입력</h3><span class="note" id="ffNote"></span></div>
+        <div class="card">
+          <div class="wctl">
+            <label>시작일 <input type="date" id="ffStart" style="width:auto"></label>
+            <label>기간 <select id="ffN"><option value="5">5일</option><option value="7">7일</option><option value="10">10일</option><option value="14">14일</option><option value="21">21일</option></select></label>
+            <label style="font-weight:600"><input type="checkbox" id="ffCarry"> 시작일 전 미출고(이월) 포함</label>
+            <label>빈 출고 칸 일괄 <input type="text" inputmode="numeric" id="ffFill" style="width:6em"> 건</label>
+            <button type="button" class="btn sm line" id="ffFillBtn">채우기</button>
+            <button type="button" class="btn sm danger" id="ffReset">입력 지우기</button>
+          </div>
+          <div class="pkpi" id="ffKpi" style="margin-top:12px"></div>
+          <div class="tbl ffx"><table><thead id="ffH"></thead><tbody id="ffB"></tbody></table></div>
+          <h4 style="margin:18px 0 0;font-size:.88rem">FIFO 배분표 <span style="font-weight:500;color:var(--muted);font-size:.78rem">행 = 주문 발생일 · 열 = 출고일 · 값 = 해당 주문에서 출고한 건수</span></h4>
+          <div class="tbl ffx"><table><thead id="ffMH"></thead><tbody id="ffMB"></tbody></table></div>
+          <p class="fcfoot" id="ffFoot"></p>
         </div>
       </section>
     </div>
@@ -941,7 +970,7 @@ const k2t=s=>{const x=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return x?Date.UTC(
 
 /* ===== 상태 / 저장 (새 파일을 올리기 전까지 유지) ===== */
 const KEY='whout-dash-v4';
-const state={snaps:[],cur:null,type:'USE',hm:'pend',tz:'PT',day:'last',xs:'pcs',ev:'',start:null,end:null,plans:{},labels:{},mig:0,lt:{fb:'OL',mode:'hr',base:null,prod:null,pm:'avg',defH:null,ppl:{},hrs:{},ex:{},sc:{},n:7,tgt:1,cut:true,ahr:{},exh:{},pmh:'avg',prodh:null,defA:null,fx:{sk:null,cap:null,n0:null,adds:[],eff:[]}}};
+const state={snaps:[],cur:null,type:'USE',hm:'pend',tz:'PT',day:'last',xs:'pcs',ev:'',start:null,end:null,plans:{},labels:{},mig:0,lt:{fb:'OL',mode:'hr',base:null,prod:null,pm:'avg',defH:null,ppl:{},hrs:{},ex:{},sc:{},n:7,tgt:1,cut:true,ahr:{},exh:{},pmh:'avg',prodh:null,defA:null,fx:{sk:null,cap:null,n0:null,adds:[],eff:[]},ff:{start:null,n:7,carry:true,o:{},s:{}}}};
 // 사진으로 받은 일자별 계획량 (USE, 건)
 const PLAN_SEED={'2026-11-23':[2835,'Black Friday'],'2026-11-24':[2521,'Black Friday'],'2026-11-25':[2678,'Black Friday'],
   '2026-11-26':[2938,'Black Friday'],'2026-11-27':[3701,'Black Friday'],'2026-11-28':[2990,'Black Friday'],
@@ -954,7 +983,7 @@ function load(){let j={};try{j=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}
   if(typeof j.start==='string')state.start=j.start; if(typeof j.end==='string')state.end=j.end;
   if(j.plans&&typeof j.plans==='object')state.plans=j.plans; if(j.labels&&typeof j.labels==='object')state.labels=j.labels;
   state.mig=j.mig|0;
-  if(j.lt&&typeof j.lt==='object')state.lt={...state.lt,...j.lt,ppl:j.lt.ppl||{},hrs:j.lt.hrs||{},ex:j.lt.ex||{},sc:j.lt.sc||{},ahr:j.lt.ahr||{},exh:j.lt.exh||{},fx:{sk:null,cap:null,n0:null,...(j.lt.fx||{}),adds:(j.lt.fx&&j.lt.fx.adds)||[],eff:(j.lt.fx&&j.lt.fx.eff)||[]}};
+  if(j.lt&&typeof j.lt==='object')state.lt={...state.lt,...j.lt,ppl:j.lt.ppl||{},hrs:j.lt.hrs||{},ex:j.lt.ex||{},sc:j.lt.sc||{},ahr:j.lt.ahr||{},exh:j.lt.exh||{},fx:{sk:null,cap:null,n0:null,...(j.lt.fx||{}),adds:(j.lt.fx&&j.lt.fx.adds)||[],eff:(j.lt.fx&&j.lt.fx.eff)||[]},ff:{start:null,n:7,carry:true,...(j.lt.ff||{}),o:(j.lt.ff&&j.lt.ff.o)||{},s:(j.lt.ff&&j.lt.ff.s)||{}}};
   if(state.mig<2){   // 1회: PT 기준, 11/23~11/30 행사, 계획량 채우기 (이미 입력한 값은 유지)
     state.tz='PT'; state.start='2026-11-23'; state.end='2026-11-30'; if(!state.ev)state.ev='블프';
     for(const [d,[p,l]] of Object.entries(PLAN_SEED)){const k='USE|'+d;if(!(state.plans[k]&&state.plans[k].p!=null))state.plans[k]={...(state.plans[k]||{}),p};if(!state.labels[d])state.labels[d]=l;}
@@ -1902,6 +1931,7 @@ function renderForecast(){
       :(need===Infinity?`<span class="bad">D+${tgt}는 인원 3,000명으로도 맞출 수 없습니다 (현재 잔여가 너무 큼).</span>`:`모든 날 D+${tgt} 안에 내보내려면 근무일마다 <b>${fmt(need)}명</b> (${H}시간)이 필요합니다.`));
   }
   $('fcMsg').innerHTML=msg.join('<br>');
+  renderFifo(m,D);
   $('fcSimFoot').innerHTML=`처리 능력 = ${HR?'시간당 생산성 × 가동시간':'인원 × 근무시간 × 인시당 생산성'} · 현재 잔여(수신일 순)부터 선입선출 · ${L.cut?'그날 수신분은 다음 날부터 처리':'그날 수신분도 당일 처리 가능'} · `+
     `리드타임 = 그날 수신 주문이 전부 출고 완료되는 날 − 수신일 · 회색 = 기본값, 검은색 = 직접 입력 · 기준시각 이후 오늘 남은 처리·수신은 반영하지 않음`;
 }
@@ -1930,6 +1960,91 @@ $('fcFx').addEventListener('click',e=>{const t=e.target.closest('button');if(!t)
   else if(d.fxdel)fcSet(L=>{L.fx[d.fxdel].splice(+d.i,1);});});
 $('fcReset').onclick=()=>{if(!confirm('시나리오 입력값(예상 주문·인원·가동/근무시간·시뮬레이션 변수)을 지울까요? ① 생산성 확인 입력값은 유지됩니다.'))return;
   fcSet(L=>{L.sc={};L.base=null;L.fx={sk:null,cap:null,n0:null,adds:[],eff:[]};});};
+
+/* ===== ④ FIFO 시뮬레이터: 날짜별 출고량(건)만 넣으면 오래된 주문부터 차감 ===== */
+function ffData(m,S){
+  const ord=new Map(), shp=new Map(), open=new Map();
+  for(const x of m.USE.items){
+    const q=x.q||0, pq=(x.dq||0)+(x.xq||0), rt=db(x.t), dd=x.d!=null?db(x.d):null;
+    if(q)ord.set(rt,(ord.get(rt)||0)+q);
+    if(dd!=null&&pq)shp.set(dd,(shp.get(dd)||0)+pq);
+    if(rt<S&&q){const left=Math.max(0,q-(dd!=null&&dd<S?pq:0)); if(left)open.set(rt,(open.get(rt)||0)+left);}
+  }
+  return {ord,shp,open:[...open].sort((a,b)=>a[0]-b[0]).map(([t,a])=>({t,a}))};
+}
+function ffRun(open,cols){
+  const coh=open.map(b=>({t:b.t,a0:b.a,a:b.a,carry:true,al:{},done:null}));
+  let cO=0,cS=0;
+  const res=cols.map((c,j)=>{
+    if(c.o>0)coh.push({t:c.t,a0:c.o,a:c.o,carry:false,al:{},done:null});
+    let r=c.s,ap=0,lw=0;
+    for(const b of coh){ if(r<=0)break; if(b.a<=0)continue; const x=Math.min(r,b.a);
+      b.a-=x; r-=x; ap+=x; lw+=x*Math.round((c.t-b.t)/DAY); b.al[j]=(b.al[j]||0)+x; if(b.a<=0)b.done=c.t; }
+    cO+=c.o; cS+=ap;
+    return {...c,ap,un:r,rem:coh.reduce((s,b)=>s+b.a,0),cO,cS,lt:ap?lw/ap:null};
+  });
+  return {coh,res};
+}
+const ffLt=v=>v==null?'-':String(Math.round(v*100)/100);
+function renderFifo(m,D){
+  const L=state.lt, F=L.ff, Ds=D.Ds;
+  const S=F.start?Date.parse(F.start+'T00:00:00Z'):Ds+DAY, n=+F.n||7;
+  const X=ffData(m,S), open=F.carry?X.open:[];
+  const refAvg=D.ref.length?Math.round(D.ref.reduce((a,r)=>a+r.N,0)/D.ref.length):0;
+  const cols=[];
+  for(let i=0;i<n;i++){ const t=S+i*DAY, dk=dKey(t), past=t<=Ds, sc=L.sc[dk]||{}, plan=(state.plans['USE|'+dk]||{}).p;
+    const oDef=past?(X.ord.get(t)||0):(fcNum(sc.o)??(plan!=null?plan:Math.round(D.avgOrd)));
+    const sDef=past?(X.shp.get(t)||0):0;
+    const oi=fcNum(F.o[dk]), si=fcNum(F.s[dk]);
+    cols.push({t,dk,i,past,o:oi??oDef,s:si??sDef,oIn:oi!=null,sIn:si!=null}); }
+  const R=ffRun(open,cols), res=R.res, last=res[res.length-1];
+  if(document.activeElement!==$('ffStart'))$('ffStart').value=dKey(S);
+  $('ffN').value=String(n); $('ffCarry').checked=!!F.carry; $('ffFill').placeholder=fmt(refAvg);
+  const openN=open.reduce((a,b)=>a+b.a,0);
+  $('ffNote').textContent=`USE · 단위 주문 건수 · 노란 출고 칸 입력 → 오래된 주문부터 차감 · 미입력 출고 = 0건 · ${state.tz} 기준`;
+  const hd=c=>{const wd=d_(c.t).getUTCDay();return `<th>${fDay(c.t)} <span class="${wd===0?'sun':wd===6?'sat':''}">${WD[wd]}</span><small>${c.i+1}일차${c.t===Ds?' · 진행 중':c.past?' · 실적':''}</small></th>`;};
+  $('ffH').innerHTML=`<tr><th>구분</th>${cols.map(hd).join('')}</tr>`;
+  const row=(lab,f,cls='')=>`<tr class="${cls}"><td>${lab}</td>${res.map(f).join('')}</tr>`;
+  $('ffB').innerHTML=
+    row('주문',c=>`<td><input data-ffo="${c.dk}" inputmode="numeric" value="${fmt(c.o)}" class="${c.oIn?'':'dflt'}" title="${c.oIn?'직접 입력':c.past?'실적 수신 건수':'② 시나리오 예상 주문'}" aria-label="${fDay(c.t)} 주문"></td>`)+
+    row('출고 입력(건)',c=>`<td><input data-ffs="${c.dk}" inputmode="numeric" value="${c.sIn||c.past?fmt(c.s):''}" placeholder="0" class="${c.sIn?'':'dflt'}" title="${c.sIn?'직접 입력':c.past?'실적 출고(결품 포함)':'미입력 = 0건'}" aria-label="${fDay(c.t)} 출고"></td>`,'ffin')+
+    row('마감 미출고',c=>`<td><b>${fmt(c.rem)}</b></td>`)+
+    row('FIFO 적용 출고',c=>`<td>${fmt(c.ap)}</td>`)+
+    row('미사용 출고량',c=>`<td class="${c.un?'bad':'z'}">${fmt(c.un)}</td>`)+
+    row('누적 주문',c=>`<td>${fmt(c.cO)}</td>`)+
+    row('누적 적용 출고',c=>`<td>${fmt(c.cS)}</td>`)+
+    row('당일 출고 평균 LT',c=>`<td><b>${ffLt(c.lt)}</b></td>`)+
+    row('입력 / 배분 점검',c=>c.un?`<td class="bad" title="남은 주문보다 출고 입력이 많음">초과 ${fmt(c.un)}</td>`:`<td class="ok">OK</td>`);
+  // 배분표
+  const coh=R.coh.filter(b=>b.a0>0);
+  $('ffMH').innerHTML=`<tr><th>주문일</th><th>주문</th>${cols.map(hd).join('')}<th>미출고</th><th>완료일</th><th>LT</th></tr>`;
+  $('ffMB').innerHTML=coh.map(b=>`<tr class="${b.carry?'carry':''}"><td>${fDayW(b.t)}${b.carry?' · 이월':''}</td><td>${fmt(b.a0)}</td>${cols.map(c=>{const v=b.al[c.i];return `<td class="${v?'':'z'}">${v?fmt(v):'·'}</td>`;}).join('')}
+      <td class="${b.a?'bad':'z'}">${fmt(b.a)}</td><td>${b.done!=null?fDayW(b.done):'-'}</td><td><b>${b.done!=null?'D+'+Math.round((b.done-b.t)/DAY):b.a<b.a0?'진행 중':'-'}</b></td></tr>`).join('')+
+    `<tr class="sum"><td>출고 합계</td><td>${fmt(coh.reduce((a,b)=>a+b.a0,0))}</td>${res.map(c=>`<td>${fmt(c.ap)}</td>`).join('')}<td>${fmt(last?last.rem:0)}</td><td></td><td></td></tr>`;
+  // KPI
+  const apT=res.reduce((a,c)=>a+c.ap,0), ltW=res.reduce((a,c)=>a+(c.lt||0)*c.ap,0), unT=res.reduce((a,c)=>a+c.un,0);
+  const oldest=R.coh.find(b=>b.a>0), endT=last?last.t:S;
+  const doneC=R.coh.filter(b=>!b.carry&&b.done!=null), dn=doneC.reduce((a,b)=>a+b.a0,0);
+  $('ffKpi').innerHTML=
+    pk('시작 이월',F.carry?fmt(openN):'제외','건',F.carry?(open.length?`${fDay(open[0].t)}~ 수신분 · ${fmt(open.length)}일치`:'없음'):'시작일 전 잔여 무시')+
+    pk('기간 주문',fmt(last?last.cO:0),'건',`${fmt(n)}일`)+
+    pk('기간 출고 (적용)',fmt(apT),'건',unT?`<span style="color:var(--crit);font-weight:800">미사용 ${fmt(unT)}건</span>`:'입력 전부 배분됨')+
+    pk('마지막 날 미출고',fmt(last?last.rem:0),'건',`${fDay(endT)} 마감 기준`)+
+    pk('출고 평균 LT',apT?ffLt(ltW/apT):'-','일',`출고 건수 가중 · 마지막 날 ${ffLt(last&&last.lt)}`)+
+    pk('가장 오래된 미출고',oldest?fDay(oldest.t):'없음','',oldest?`${fDay(endT)} 기준 D+${Math.round((endT-oldest.t)/DAY)} · 완료 주문일 평균 LT ${dn?ffLt(doneC.reduce((a,b)=>a+b.a0*(b.done-b.t)/DAY,0)/dn):'-'}`:'기간 안에 모두 출고');
+  $('ffFoot').innerHTML=`당일 출고 평균 LT = 그날 출고한 건의 (출고일 − 주문일) 가중 평균, 당일 출고 = 0일 · 기준시각(${fDay(Ds)}) 이전 날짜는 데이터 실적(수신 건수 · 출고+결품 건수)이 회색 기본값으로 들어가고, 이후 날짜의 주문 기본값은 ② 시나리오의 예상 주문입니다 · `+
+    `회색 = 기본값, 검은색 = 직접 입력(칸을 비우면 기본값으로 돌아감) · 최근 출고 평균 ${fmt(refAvg)}건/일 · 실제 현장은 완전한 선입선출이 아니므로 과거 구간 LT는 근사치입니다.`;
+}
+$('ffB').addEventListener('change',e=>{const t=e.target,d=t.dataset,k=d.ffo?'o':d.ffs?'s':null;if(!k)return;const dk=d.ffo||d.ffs;
+  fcSet(L=>{const v=fcNum(t.value); if(v==null)delete L.ff[k][dk]; else L.ff[k][dk]=v;});});
+$('ffStart').onchange=e=>fcSet(L=>{L.ff.start=e.target.value||null;});
+$('ffN').onchange=e=>fcSet(L=>{L.ff.n=+e.target.value;});
+$('ffCarry').onchange=e=>fcSet(L=>{L.ff.carry=e.target.checked;});
+$('ffFillBtn').onclick=()=>{const v=fcNum($('ffFill').value)??fcNum($('ffFill').placeholder);if(v==null)return;
+  const s=curSnap(); if(!s)return; const Ds=fcData(model(s)).Ds;
+  fcSet(L=>{const F=L.ff,S=F.start?Date.parse(F.start+'T00:00:00Z'):Ds+DAY;
+    for(let i=0;i<(+F.n||7);i++){const t=S+i*DAY,dk=dKey(t); if(t>Ds&&F.s[dk]==null)F.s[dk]=v;}});};
+$('ffReset').onclick=()=>{if(!confirm('④ FIFO 시뮬레이터의 주문·출고 입력값을 지울까요?'))return;fcSet(L=>{L.ff.o={};L.ff.s={};});};
 
 load(); route();
 fetch('data.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(s=>{
