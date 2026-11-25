@@ -85,6 +85,9 @@
 
   /* 업로드 */
   .drop{margin-top:22px;border:2px dashed var(--border);border-radius:12px;background:var(--surface);padding:42px 24px;text-align:center;cursor:pointer}
+  .drop.paste:focus{outline:2px solid var(--accent);outline-offset:2px}.drop.paste.hot{border-color:var(--accent);background:var(--accent-soft)}
+  .pasteopt{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;align-items:center;margin:12px 0 8px;font-size:.84rem;cursor:default}.pasteopt .hint,.altfile{color:var(--muted);font-size:.8rem}
+  .altfile{margin-top:10px;text-align:right}
   .drop.hot{border-color:var(--accent);background:var(--accent-soft)}
   .drop h2{font-size:1.15rem;font-weight:800;margin-bottom:6px}
   .drop p{color:var(--muted);margin:4px auto;max-width:52ch;font-size:.88rem}
@@ -312,7 +315,7 @@
       <button class="tab" role="tab" id="tab-pending" data-view="pending">미출고 관리</button>
       <button class="tab" role="tab" id="tab-shortage" data-view="shortage">결품 분석</button>
       <button class="tab" role="tab" id="tab-forecast" data-view="forecast">리드타임 예측</button>
-      <button class="tab" role="tab" id="tab-upload" data-view="upload">파일 올리기</button>
+      <button class="tab" role="tab" id="tab-upload" data-view="upload">데이터 넣기</button>
     </nav>
   </div>
 </header>
@@ -320,13 +323,18 @@
 <div class="wrap">
   <!-- ===== 파일 올리기 ===== -->
   <div id="view-upload" hidden>
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="출고 실적 파일 선택">
-      <h2>WHOUT 출고 실적 파일 올리기</h2>
-      <p>엑셀 파일을 끌어다 놓거나 눌러서 선택하세요. 파일은 이 브라우저 안에서만 읽고, 새 파일을 올리기 전까지 마지막 기록이 유지됩니다.</p>
-      <div class="code">WHOUT_RSLT_ORD_YYYYMMDD_HHMMSS.xlsx</div>
-      <button class="btn" type="button" id="pick">파일 선택</button>
-      <input type="file" id="file" accept=".xlsx,.xls" hidden>
+    <div class="drop paste" id="pasteBox" tabindex="0" role="button" aria-label="출고 실적 붙여넣기">
+      <h2>WHOUT 출고 실적 붙여넣기</h2>
+      <p>엑셀에서 원본 시트를 <b>전체 선택(Ctrl+A) → 복사(Ctrl+C)</b> 한 뒤, 이 칸을 누르고 <b>붙여넣기(Ctrl+V)</b> 하세요.<br>
+        '센터' 헤더 행부터 함께 복사해야 합니다. 붙여넣은 내용은 이 브라우저 안에서만 계산하고 어디로도 전송하지 않습니다.</p>
+      <div class="pasteopt" onclick="event.stopPropagation()">
+        <label>추출 시각 (KST) <input type="datetime-local" id="pasteAsof" step="1"></label>
+        <span class="hint">비우면 마지막 최종작업시간을 기준 시각으로 씁니다</span>
+      </div>
+      <div class="code" id="pasteState">여기를 누른 뒤 Ctrl+V</div>
     </div>
+    <div class="altfile">파일로 읽기도 가능: <button class="btn sm line" type="button" id="pick">엑셀 파일 선택</button>
+      <input type="file" id="file" accept=".xlsx,.xls" hidden></div>
     <div class="msg" id="msg" role="status"></div>
     <div class="defs">
       <span><b>USE</b> 거래처코드 FE · 건(전표)</span>
@@ -360,7 +368,7 @@
   <div id="view-pending" hidden>
     <div id="noData2" class="card" style="margin-top:22px;text-align:center;padding:40px 20px" hidden>
       <h2 style="font-size:1.05rem;margin-bottom:6px">불러온 파일이 없습니다</h2>
-      <p style="color:var(--muted);font-size:.88rem;margin:0">파일 올리기 탭에서 WHOUT 출고 실적 엑셀을 올려주세요.</p>
+      <p style="color:var(--muted);font-size:.88rem;margin:0">데이터 넣기 탭에서 WHOUT 출고 실적을 붙여넣어 주세요.</p>
     </div>
     <div id="pend" hidden>
       <section style="margin-top:18px">
@@ -486,7 +494,7 @@
   <div id="view-forecast" hidden>
     <div id="noData4" class="card" style="margin-top:22px;text-align:center;padding:40px 20px" hidden>
       <h2 style="font-size:1.05rem;margin-bottom:6px">불러온 파일이 없습니다</h2>
-      <p style="color:var(--muted);font-size:.88rem;margin:0">파일 올리기 탭에서 WHOUT 출고 실적 엑셀을 올려주세요.</p>
+      <p style="color:var(--muted);font-size:.88rem;margin:0">데이터 넣기 탭에서 WHOUT 출고 실적을 붙여넣어 주세요.</p>
     </div>
     <div id="fc" hidden>
       <section style="margin-top:18px">
@@ -542,8 +550,8 @@
   <div id="view-report" hidden>
     <div id="noData" class="card" style="margin-top:22px;text-align:center;padding:40px 20px" hidden>
       <h2 style="font-size:1.05rem;margin-bottom:6px">불러온 파일이 없습니다</h2>
-      <p style="color:var(--muted);font-size:.88rem;margin:0 0 16px">파일 올리기 탭에서 WHOUT 출고 실적 엑셀을 올려주세요.</p>
-      <button class="btn" type="button" id="goUpload">파일 올리기</button>
+      <p style="color:var(--muted);font-size:.88rem;margin:0 0 16px">데이터 넣기 탭에서 WHOUT 출고 실적을 붙여넣어 주세요.</p>
+      <button class="btn" type="button" id="goUpload">데이터 넣기</button>
     </div>
 
     <div id="report" hidden>
@@ -996,14 +1004,45 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{location.hash=b.data
 window.addEventListener('hashchange',route);
 $('goUpload').onclick=()=>{location.hash='upload';route();};
 
-/* ===== 업로드 ===== */
-const drop=$('drop');
-drop.onclick=e=>{if(e.target.id!=='file')$('file').click();};
-drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('file').click();}};
+/* ===== 붙여넣기 / 파일 ===== */
+const drop=$('pasteBox');
+drop.onclick=()=>drop.focus();
+$('pick').onclick=()=>$('file').click();
 $('file').onchange=e=>{const f=e.target.files[0];if(f)read(f);e.target.value='';};
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hot');}));
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
 drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)read(f);});
+// 엑셀 복사본(탭 구분 텍스트) → 행 배열. 따옴표로 감싼 칸(줄바꿈·탭·따옴표 포함)도 처리
+function parseTSV(t){
+  const rows=[]; let row=[], i=0; const n=t.length;
+  while(i<n){
+    if(t.charCodeAt(i)===34){let j=i+1,v='';
+      for(;;){const k=t.indexOf('"',j); if(k<0){v+=t.slice(j);j=n;break;} v+=t.slice(j,k); if(t[k+1]==='"'){v+='"';j=k+2;}else{j=k+1;break;}}
+      row.push(v); i=j;}
+    else{let k=i; while(k<n){const c=t.charCodeAt(k); if(c===9||c===10||c===13)break; k++;} row.push(t.slice(i,k)); i=k;}
+    const c=t.charCodeAt(i);
+    if(c===9){i++; if(i===n)row.push('');}
+    else{ if(c===13)i++; if(t.charCodeAt(i)===10)i++; rows.push(row); row=[]; }
+  }
+  if(row.length)rows.push(row);
+  return rows;
+}
+document.addEventListener('paste',e=>{
+  if($('view-upload').hidden)return;
+  const a=document.activeElement; if(a&&a!==drop&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'))return;
+  const t=e.clipboardData&&e.clipboardData.getData('text/plain'); if(!t)return;
+  e.preventDefault();
+  setMsg(`붙여넣은 내용 계산 중… (${fmt(t.length/1e6)}MB)`); $('pasteState').textContent='계산 중…';
+  setTimeout(()=>{
+    try{
+      const rows=parseTSV(t);
+      const v=$('pasteAsof').value, m=v&&v.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+      const name=m?`붙여넣기_${m[1]}${m[2]}${m[3]}_${m[4]}${m[5]}${m[6]||'00'}`:`붙여넣기 (${new Date().toLocaleString('ko-KR')})`;
+      ingest(rows,name,null);
+      $('pasteState').textContent=`붙여넣기 완료 · ${fmt(rows.length)}줄`;
+    }catch(err){setMsg('붙여넣은 내용을 읽지 못했습니다. '+err.message,'bad');$('pasteState').textContent='여기를 누른 뒤 Ctrl+V';}
+  },30);
+});
 
 function setMsg(t,cls){const m=$('msg');m.textContent=t;m.className='msg '+(cls||'');}
 function read(file){
@@ -1027,7 +1066,15 @@ function read(file){
         try{colIdx(r);sheets.push([nm,r.length,1]);if(r.length>best){best=r.length;rows=r;used=nm;}}catch(e){lastErr=e;sheets.push([nm,r.length,0]);}
       }
       if(!rows)throw lastErr||new Error('원본 데이터 시트를 찾지 못했습니다.');
-      const snap=aggregate(rows,file.name,{used,list:sheets});
+      ingest(rows,file.name,{used,list:sheets});
+    }catch(err){setMsg('파일을 읽지 못했습니다. '+err.message,'bad');}
+  };
+  fr.onerror=()=>setMsg('파일을 여는 중 오류가 발생했습니다.','bad');
+  fr.readAsArrayBuffer(file);
+}
+function ingest(rows,name,info){
+      colIdx(rows);   // '센터' 헤더 확인
+      const snap=aggregate(rows,name,info);
       if(!snap.rows)throw new Error('데이터 행이 없습니다.');
       state.snaps=[snap,...state.snaps.filter(s=>s.id!==snap.id)].sort((a,b)=>(b.asof??0)-(a.asof??0)).slice(0,20);
       state.cur=snap.id; state.day='last'; save();
@@ -1035,10 +1082,6 @@ function read(file){
       setMsg(`${fT(tzConv(snap.asof,'PT'))} PT 추출본 · ${fmt(snap.rows)}행 · 유효성 체크 ${nIss?'확인 필요 '+nIss+'건 (아래 참고)':'이상 없음'}`,nIss?'bad':'ok');
       if(nIss){renderUpload();setHdr();return;}
       location.hash='report'; route();
-    }catch(err){setMsg('파일을 읽지 못했습니다. '+err.message,'bad');}
-  };
-  fr.onerror=()=>setMsg('파일을 여는 중 오류가 발생했습니다.','bad');
-  fr.readAsArrayBuffer(file);
 }
 
 function renderCheck(){
