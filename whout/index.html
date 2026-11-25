@@ -222,7 +222,12 @@
   #fcRef td,#fcSim td{text-align:right} #fcRef td:first-child,#fcSim td:first-child{text-align:left}
   #fcSim td.c{text-align:center} #fcSim tr.off td{color:var(--faint)}
   #fcSim td.lt{font-weight:900} #fcSim td.lt.bad{color:var(--crit)} #fcSim td.lt.ok{color:var(--good)}
-  #fcRef tfoot td,#fcRef tr.tot td{font-weight:800;background:var(--surface-2)}
+  #fcRef td.c{text-align:center} #fcRef tr.off td{color:var(--faint)}
+  .fcpick{margin-top:12px;display:grid;gap:8px}
+  .fcstat{font-size:.84rem} .fcstat.bad{color:var(--crit);font-weight:700} .fcstat b{font-weight:900}
+  .fcopts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:.82rem}
+  .fcopts>span{font-weight:800;color:var(--muted)}
+  .fcopt{display:inline-flex;align-items:center;gap:6px;cursor:pointer} .fcopt b{font-weight:900}
   .wbox{border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:8px;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center}
   .wbox .big{font-size:1.5rem;font-weight:900}
   .wbox .it{font-size:.78rem;color:var(--muted)} .wbox .it b{display:block;font-size:1.1rem;color:var(--fg);font-weight:900}
@@ -467,12 +472,12 @@
     </div>
     <div id="fc" hidden>
       <section style="margin-top:18px">
-        <div class="shead"><h2>리드타임 예측</h2><span class="note">USE · 현재 잔여 + 예상 주문을 인원 × 1인당 생산성으로 선입선출 처리했을 때 · 입력값은 이 브라우저에 저장</span></div>
+        <div class="shead"><h2>리드타임 예측</h2><span class="note">USE · ① 일자별 투입 인력으로 실제 생산성을 확인 → ② 그 생산성과 계획 인원으로 리드타임 예측 · 입력값은 이 브라우저에 저장</span></div>
         <div class="pkpi" id="fcKpi"></div>
         <div class="fcmsg" id="fcMsg"></div>
       </section>
       <section>
-        <div class="shead"><h3>① 생산성 기준</h3><span class="note" id="fcRefNote"></span></div>
+        <div class="shead"><h3>① 현재 생산성 확인</h3><span class="note" id="fcRefNote"></span></div>
         <div class="card">
           <div class="wctl">
             <span class="switch sm" role="group" aria-label="생산성 단위">
@@ -480,13 +485,13 @@
               <button type="button" data-fb="N" id="fb-N">건</button>
               <button type="button" data-fb="P" id="fb-P">pcs</button>
             </span>
-            <label>기준 인원 <input type="text" inputmode="numeric" id="fcBase" placeholder="명"></label>
-            <label>1인당 생산성 직접 입력 <input type="text" inputmode="decimal" id="fcProd" placeholder="자동"></label>
+            <label>기본 근무시간 <input type="text" inputmode="decimal" id="fcDefH" style="width:3.5em" placeholder="8"> 시간</label>
           </div>
           <div class="tbl dtbl" style="margin-top:12px"><table>
-            <thead><tr><th>출고일</th><th>출고 건</th><th>행(OL)</th><th>pcs</th><th>투입 인원</th><th>1인당 생산성</th></tr></thead>
+            <thead><tr><th>출고일</th><th>출고 건</th><th>행(OL)</th><th>pcs</th><th>건당 OL</th><th>투입 인원</th><th>근무시간</th><th>인시</th><th>인시당</th><th>1인 하루</th><th>평균에 포함</th></tr></thead>
             <tbody id="fcRef"></tbody>
           </table></div>
+          <div class="fcpick" id="fcPick"></div>
           <p class="fcfoot" id="fcRefFoot"></p>
         </div>
       </section>
@@ -495,13 +500,13 @@
         <div class="card">
           <div class="wctl">
             <label>기간 <select id="fcN"><option value="5">5일</option><option value="7">7일</option><option value="10">10일</option><option value="14">14일</option></select></label>
+            <label>기본 인원 <input type="text" inputmode="numeric" id="fcBase" style="width:4.5em" placeholder="명"></label>
             <label>목표 리드타임 D+ <input type="text" inputmode="numeric" id="fcTgt" style="width:3em"></label>
             <label style="font-weight:600"><input type="checkbox" id="fcCut"> 그날 수신분은 다음 날부터 처리</label>
-            <button type="button" class="btn sm line" id="fcAll">인원 일괄 입력</button>
-            <button type="button" class="btn sm danger" id="fcReset">입력 초기화</button>
+            <button type="button" class="btn sm danger" id="fcReset">시나리오 초기화</button>
           </div>
           <div class="tbl dtbl" style="margin-top:12px"><table>
-            <thead><tr><th>날짜</th><th>예상 주문 (건)</th><th>인원</th><th>근무</th><th>처리 능력</th><th>처리</th><th>남은 잔여</th><th>잔여 (건 환산)</th><th>이날 수신분 출고 완료</th><th>리드타임</th></tr></thead>
+            <thead><tr><th>날짜</th><th>예상 주문 (건)</th><th>인원</th><th>근무시간</th><th>근무</th><th>처리 능력</th><th>처리</th><th>남은 잔여</th><th>잔여 (건 환산)</th><th>이날 수신분 출고 완료</th><th>리드타임</th></tr></thead>
             <tbody id="fcSim"></tbody>
           </table></div>
           <p class="fcfoot" id="fcSimFoot"></p>
@@ -874,7 +879,7 @@ const k2t=s=>{const x=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return x?Date.UTC(
 
 /* ===== 상태 / 저장 (새 파일을 올리기 전까지 유지) ===== */
 const KEY='whout-dash-v4';
-const state={snaps:[],cur:null,type:'USE',hm:'pend',tz:'PT',day:'last',xs:'pcs',ev:'',start:null,end:null,plans:{},labels:{},mig:0,lt:{fb:'OL',base:null,prod:null,ppl:{},sc:{},n:7,tgt:1,cut:true}};
+const state={snaps:[],cur:null,type:'USE',hm:'pend',tz:'PT',day:'last',xs:'pcs',ev:'',start:null,end:null,plans:{},labels:{},mig:0,lt:{fb:'OL',base:null,prod:null,pm:'avg',defH:null,ppl:{},hrs:{},ex:{},sc:{},n:7,tgt:1,cut:true}};
 // 사진으로 받은 일자별 계획량 (USE, 건)
 const PLAN_SEED={'2026-11-23':[2835,'Black Friday'],'2026-11-24':[2521,'Black Friday'],'2026-11-25':[2678,'Black Friday'],
   '2026-11-26':[2938,'Black Friday'],'2026-11-27':[3701,'Black Friday'],'2026-11-28':[2990,'Black Friday'],
@@ -887,7 +892,7 @@ function load(){let j={};try{j=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}
   if(typeof j.start==='string')state.start=j.start; if(typeof j.end==='string')state.end=j.end;
   if(j.plans&&typeof j.plans==='object')state.plans=j.plans; if(j.labels&&typeof j.labels==='object')state.labels=j.labels;
   state.mig=j.mig|0;
-  if(j.lt&&typeof j.lt==='object')state.lt={...state.lt,...j.lt,ppl:j.lt.ppl||{},sc:j.lt.sc||{}};
+  if(j.lt&&typeof j.lt==='object')state.lt={...state.lt,...j.lt,ppl:j.lt.ppl||{},hrs:j.lt.hrs||{},ex:j.lt.ex||{},sc:j.lt.sc||{}};
   if(state.mig<2){   // 1회: PT 기준, 11/23~11/30 행사, 계획량 채우기 (이미 입력한 값은 유지)
     state.tz='PT'; state.start='2026-11-23'; state.end='2026-11-30'; if(!state.ev)state.ev='블프';
     for(const [d,[p,l]] of Object.entries(PLAN_SEED)){const k='USE|'+d;if(!(state.plans[k]&&state.plans[k].p!=null))state.plans[k]={...(state.plans[k]||{}),p};if(!state.labels[d])state.labels[d]=l;}
@@ -1535,37 +1540,42 @@ let rz; window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=
   if(s&&!$('report').hidden)renderTypeViews(s); if(s&&!$('view-shortage').hidden)renderShortage();},150);});
 
 /* ===== 리드타임 예측 (USE) =====
-   생산성 = 출고일별 출고량(단위) ÷ 투입 인원 → 인원 가중 평균
-   시뮬레이션 = 현재 잔여(수신일별) + 날짜별 예상 주문을 선입선출로, 날마다 인원 × 1인당 생산성 만큼 처리 */
+   ① 생산성 = 출고일별 출고량(단위) ÷ (투입 인원 × 근무시간) → 인원을 입력하고 '포함'한 날만 사용
+   ② 시뮬레이션 = 현재 잔여(수신일별) + 날짜별 예상 주문을 선입선출로, 날마다 인원 × 근무시간 × 인시당 생산성 만큼 처리 */
 const FB={OL:{k:'OL',name:'행(OL)',u:'OL'},N:{k:'N',name:'건',u:'건'},P:{k:'P',name:'pcs',u:'pcs'}};
 const fcNum=v=>{const x=parseFloat(String(v??'').replace(/[^\d.]/g,''));return isFinite(x)?x:null;};
+const fcH=()=>fcNum(state.lt.defH)||8;
 function fcData(m){
-  const U=m.USE.items, Ds=m.lastDay, val=(x,f)=>f==='OL'?x.OL:f==='P'?x.pcs:x.dq-(x.xq||0);
-  // 출고일별 출고 (결품으로만 끝난 전표 제외)
+  const U=m.USE.items, Ds=m.lastDay;
   const ship=new Map();
   for(const x of U){ if(x.d==null||!x.dq||x.xq)continue; const d=db(x.d); if(d>=Ds)continue;
     const a=ship.get(d)||{t:d,N:0,OL:0,P:0}; a.N+=x.dq; a.OL+=x.OL||0; a.P+=x.pcs||0; ship.set(d,a);}
-  const ref=[...ship.values()].sort((a,b)=>a.t-b.t).slice(-7);
-  // 최근 7일 수신 주문의 건당 OL·pcs, 일평균 수신 건
+  const ref=[...ship.values()].sort((a,b)=>a.t-b.t).slice(-14);
   let rn=0,rol=0,rp=0; const rd=new Set();
   for(const x of U){ if(x.t>=Ds-7*DAY&&x.t<Ds){rn+=x.q;rol+=x.OL||0;rp+=x.pcs||0;rd.add(db(x.t));} }
   const per={N:1,OL:rn?rol/rn:1,P:rn?rp/rn:1}, avgOrd=rd.size?rn/rd.size:0;
-  // 현재 잔여 (수신일별)
   const back=new Map();
   for(const x of U){ if(x.d!=null||!x.q)continue; const d=db(x.t); const a=back.get(d)||{t:d,N:0,OL:0,P:0};
     a.N+=x.q; a.OL+=x.OL||0; a.P+=x.pcs||0; back.set(d,a);}
   return {Ds,ref,per,avgOrd,back:[...back.values()].sort((a,b)=>a.t-b.t)};
 }
+// 생산성: 인원을 넣은 날만 · 인시당
 function fcProd(D){
-  const L=state.lt, f=L.fb; let sv=0,sp=0;
-  const rows=D.ref.map(r=>{const p=fcNum(L.ppl[dKey(r.t)])??fcNum(L.base); const v=r[f];
-    if(p>0){sv+=v;sp+=p;} return {...r,p,pp:p>0?v/p:null};});
-  const auto=sp>0?sv/sp:null, man=fcNum(L.prod);
-  return {rows,auto,prod:man>0?man:auto,man:man>0};
+  const L=state.lt, f=L.fb, H=fcH();
+  const rows=D.ref.map(r=>{const dk=dKey(r.t), p=fcNum(L.ppl[dk]), h=fcNum(L.hrs[dk])??H, inc=L.ex[dk]?false:true;
+    const mh=p>0&&h>0?p*h:null; return {...r,dk,p,h,mh,inc,ph:mh?r[f]/mh:null};});
+  const use=rows.filter(r=>r.ph!=null&&r.inc);
+  const wavg=a=>{const v=a.reduce((s,r)=>s+r[f],0),h=a.reduce((s,r)=>s+r.mh,0);return h?v/h:null;};
+  const st={n:use.length,avg:wavg(use),r3:wavg(use.slice(-3)),min:use.length?Math.min(...use.map(r=>r.ph)):null,max:use.length?Math.max(...use.map(r=>r.ph)):null};
+  const man=fcNum(L.prod);
+  let ph=null,src='';
+  if(L.pm==='man'&&man>0){ph=man/H;src=`직접 입력 ${fmt1(man)} ${FB[f].u}/인·일`;}
+  else if(L.pm==='r3'&&st.r3!=null){ph=st.r3;src=`최근 ${Math.min(3,st.n)}일 가중 평균`;}
+  else if(st.avg!=null){ph=st.avg;src=`입력한 ${st.n}일 가중 평균`;}
+  return {rows,st,ph,src};
 }
-// 선입선출 시뮬레이션: q = [{t:수신일, a:남은 양, n:건}], 일별 cap, 반환: 날짜별 처리·잔여, 버킷 완료일
-function fcSim(D,prod,days,cut,pplFix){
-  const f=state.lt.fb, k=D.per[f];
+function fcSim(D,ph,days,cut,pplFix){
+  const f=state.lt.fb, k=D.per[f], H=fcH();
   const q=D.back.map(b=>({t:b.t,a:b[f],n:b.N,done:null}));
   const out=[]; let last=null;
   const run=(t,ord,cap)=>{
@@ -1574,101 +1584,109 @@ function fcSim(D,prod,days,cut,pplFix){
     let c=cap, used=0;
     for(const b of q){ if(b.done!=null)continue; if(c<=0)break; const x=Math.min(c,b.a); b.a-=x; c-=x; used+=x; if(b.a<=1e-9)b.done=t; }
     if(add&&cut)q.push(add);
-    const rem=q.reduce((s,b)=>s+(b.done==null?b.a:0),0);
-    return {used,rem,add};
+    return {used,rem:q.reduce((s,b)=>s+(b.done==null?b.a:0),0),add};
   };
-  for(const d of days){ const p=pplFix!=null?(d.w?pplFix:0):(d.w?d.p:0); const cap=(p||0)*(prod||0);
-    const r=run(d.t,d.o||0,cap); out.push({...d,cap,used:r.used,rem:r.rem,b:r.add}); last=d; }
-  // 기간 뒤: 마지막 날 인원으로 계속 처리 (최대 60일)
-  const tailP=pplFix!=null?pplFix:(last?(last.w?last.p:0):0)||0;
+  const capOf=d=>d.w?((pplFix!=null?pplFix:(d.p||0))*(pplFix!=null?H:d.h)*(ph||0)):0;
+  for(const d of days){ const cap=capOf(d); const r=run(d.t,d.o||0,cap); out.push({...d,cap,used:r.used,rem:r.rem,b:r.add}); last=d; }
+  const tailCap=last?capOf({...last,w:true}):0;
   let t=last?last.t:D.Ds, guard=0;
-  while(q.some(b=>b.done==null)&&tailP*prod>0&&guard++<60){ t+=DAY; run(t,0,tailP*prod); }
+  while(q.some(b=>b.done==null)&&tailCap>0&&guard++<90){ t+=DAY; run(t,0,tailCap); }
   for(const o of out)if(o.b)o.b.lt=o.b.done!=null?Math.round((o.b.done-o.t)/DAY):null;
-  const backDone=q.filter(b=>!out.some(o=>o.b===b));
-  return {out,q,clear:q.every(b=>b.done!=null)?Math.max(...q.map(b=>b.done)):null,backDone};
+  return {out,q,clear:q.length&&q.every(b=>b.done!=null)?Math.max(...q.map(b=>b.done)):null};
 }
 function fcDays(D){
-  const L=state.lt, n=+L.n||7, base=fcNum(L.base), res=[];
+  const L=state.lt, n=+L.n||7, base=fcNum(L.base), H=fcH(), res=[];
   for(let i=1;i<=n;i++){ const t=D.Ds+i*DAY, dk=dKey(t), sc=L.sc[dk]||{};
     const plan=(state.plans['USE|'+dk]||{}).p;
     const o=fcNum(sc.o)??(plan!=null?plan:Math.round(D.avgOrd));
-    const p=fcNum(sc.p)??base; const w=sc.w==null?true:!!sc.w;
-    res.push({t,dk,o,p,w,oSrc:fcNum(sc.o)!=null?'in':plan!=null?'plan':'avg'}); }
+    res.push({t,dk,o,p:fcNum(sc.p)??base,h:fcNum(sc.h)??H,w:sc.w==null?true:!!sc.w,oSrc:fcNum(sc.o)!=null?'in':plan!=null?'plan':'avg'}); }
   return res;
 }
 function renderForecast(){
   const s=curSnap(); $('noData4').hidden=!!s; $('fc').hidden=!s; if(!s)return;
-  const m=model(s), D=fcData(m), L=state.lt, f=L.fb, F=FB[f];
+  const m=model(s), D=fcData(m), L=state.lt, f=L.fb, F=FB[f], H=fcH();
   ['OL','N','P'].forEach(x=>$('fb-'+x).setAttribute('aria-pressed',String(x===f)));
-  if(document.activeElement!==$('fcBase'))$('fcBase').value=L.base??'';
-  if(document.activeElement!==$('fcProd'))$('fcProd').value=L.prod??'';
-  $('fcN').value=String(L.n||7); $('fcTgt').value=L.tgt??''; $('fcCut').checked=!!L.cut;
+  const keepVal=(id,v)=>{if(document.activeElement!==$(id))$(id).value=v??'';};
+  keepVal('fcBase',L.base); keepVal('fcDefH',L.defH); keepVal('fcTgt',L.tgt);
+  $('fcN').value=String(L.n||7); $('fcCut').checked=!!L.cut;
   // ① 생산성
-  const P=fcProd(D);
-  $('fcRefNote').textContent=`기준시각 전날까지 최근 출고일 ${D.ref.length}일 · 출고 = 전표 출고 완료(최종작업시간) · ${state.tz}`;
-  let sN=0,sO=0,sP=0,sp=0;
-  $('fcRef').innerHTML=P.rows.map(r=>{sN+=r.N;sO+=r.OL;sP+=r.P;if(r.p>0)sp+=r.p; const dk=dKey(r.t), own=fcNum(L.ppl[dk]);
-    return `<tr><td><b>${fDayW(r.t)}</b></td><td>${fmt(r.N)}</td><td>${fmt(r.OL)}</td><td>${fmt(r.P)}</td>
-      <td><input data-ppl="${dk}" inputmode="numeric" value="${own!=null?own:''}" placeholder="${fcNum(L.base)!=null?fmt(fcNum(L.base)):'명'}" aria-label="${fDay(r.t)} 투입 인원"></td>
-      <td>${r.pp!=null?fmt1(r.pp)+' '+F.u:'<span style="color:var(--faint)">인원 입력</span>'}</td></tr>`;}).join('')+
-    (D.ref.length?`<tr class="tot"><td>합계 · 가중 평균</td><td>${fmt(sN)}</td><td>${fmt(sO)}</td><td>${fmt(sP)}</td><td>${sp?fmt(sp)+'인·일':''}</td><td>${P.auto!=null?fmt1(P.auto)+' '+F.u:'-'}</td></tr>`
-     :`<tr><td colspan="6" class="empty">기준시각 전에 출고된 날이 없습니다</td></tr>`);
-  $('fcRefFoot').innerHTML=`최근 7일 수신 주문 기준 건당 <b>${fmt1(D.per.OL)} OL</b> · <b>${fmt1(D.per.P)} pcs</b> → 예상 주문(건)을 이 비율로 ${F.name}로 바꿔 계산합니다.`+
-    ` 최종작업시간이 몇 개 시간대에 몰려 찍혀서 시간당이 아니라 <b>하루 단위</b>로 생산성을 잡습니다.`+
-    (P.man?` <b>직접 입력한 생산성 ${fmt1(P.prod)} ${F.u}/인·일</b>을 쓰는 중입니다 (자동 ${P.auto!=null?fmt1(P.auto):'-'}).`:'');
-  // ② ③ 시뮬레이션
-  const days=fcDays(D), prod=P.prod, k=D.per[f];
+  const P=fcProd(D), st=P.st;
+  $('fcRefNote').textContent=`업로드 데이터의 출고일 ${D.ref.length}일 · 출고 = 전표 출고 완료(최종작업시간) · ${state.tz} · 인원을 넣은 날만 계산`;
+  const mark=v=>v==null||st.avg==null?'':v>st.avg*1.3?' style="color:var(--good);font-weight:800"':v<st.avg*.7?' style="color:var(--crit);font-weight:800"':'';
+  $('fcRef').innerHTML=P.rows.map(r=>`<tr class="${r.inc?'':'off'}"><td><b>${fDayW(r.t)}</b></td><td>${fmt(r.N)}</td><td>${fmt(r.OL)}</td><td>${fmt(r.P)}</td><td>${r.N?fmt1(r.OL/r.N):'-'}</td>
+      <td><input data-ppl="${r.dk}" inputmode="numeric" value="${r.p!=null?r.p:''}" placeholder="입력" style="width:4.5em" aria-label="${fDay(r.t)} 투입 인원"></td>
+      <td><input data-hrs="${r.dk}" inputmode="decimal" value="${fcNum(L.hrs[r.dk])??''}" placeholder="${H}" style="width:3.5em" aria-label="${fDay(r.t)} 근무시간"></td>
+      <td>${r.mh?fmt(r.mh):''}</td><td${mark(r.ph)}>${r.ph!=null?fmt1(r.ph):'<span style="color:var(--faint)">인원 입력</span>'}</td>
+      <td>${r.ph!=null?fmt(r.ph*H):''}</td>
+      <td class="c"><input type="checkbox" data-inc="${r.dk}" ${r.inc?'checked':''} aria-label="${fDay(r.t)} 평균에 포함"></td></tr>`).join('')||
+    `<tr><td colspan="11" class="empty">기준시각 전에 출고된 날이 없습니다</td></tr>`;
+  const opt=(v,lab,val)=>`<label class="fcopt"><input type="radio" name="fcpm" value="${v}" ${(L.pm||'avg')===v?'checked':''}> ${lab} <b>${val}</b></label>`;
+  $('fcPick').innerHTML=st.n||L.pm==='man'?
+    `<div class="fcstat">인원 입력 <b>${st.n}</b>일 · 인시당 ${F.u}: 평균 <b>${st.avg!=null?fmt1(st.avg):'-'}</b> · 최소 ${st.min!=null?fmt1(st.min):'-'} · 최대 ${st.max!=null?fmt1(st.max):'-'}${st.avg?` · 편차 ${fmt(Math.round((st.max-st.min)/st.avg*100))}%`:''}</div>`+
+    `<div class="fcopts"><span>예측에 쓸 생산성</span>`+
+      opt('avg','입력한 날 가중 평균',st.avg!=null?`${fmt1(st.avg)} /인시 (${fmt(st.avg*H)} /인·일)`:'-')+
+      opt('r3','최근 3일',st.r3!=null?`${fmt1(st.r3)} /인시 (${fmt(st.r3*H)} /인·일)`:'-')+
+      `<label class="fcopt"><input type="radio" name="fcpm" value="man" ${L.pm==='man'?'checked':''}> 직접 입력 <input type="text" inputmode="decimal" id="fcProd" value="${L.prod??''}" placeholder="${F.u}/인·일" style="width:6em"></label></div>`
+    :`<div class="fcstat bad">출고일별 <b>투입 인원</b>을 넣으면 그날 생산성이 계산됩니다. 인원을 넣지 않은 날은 평균에 들어가지 않습니다.</div>`;
+  $('fcRefFoot').innerHTML=`인시 = 인원 × 근무시간 · 인시당 = 그날 출고 ${F.name} ÷ 인시 · 1인 하루 = 인시당 × 기본 근무시간(${H}시간) · <span style="color:var(--good)">초록</span>/<span style="color:var(--crit)">빨강</span> = 평균보다 30% 이상 높음/낮음 → 출고 확정이 몰려 찍힌 날일 수 있으니 '평균에 포함'을 풀어 빼세요.`+
+    `<br>최근 7일 수신 주문은 건당 <b>${fmt1(D.per.OL)} OL</b> · <b>${fmt1(D.per.P)} pcs</b> → 예상 주문(건)을 이 비율로 ${F.name}로 바꿔 계산합니다.`;
+  // ② ③
+  const days=fcDays(D), ph=P.ph, k=D.per[f];
   const backN=D.back.reduce((a,b)=>a+b.N,0), backV=D.back.reduce((a,b)=>a+b[f],0);
-  const S=prod?fcSim(D,prod,days,L.cut,null):null;
-  const tgt=fcNum(L.tgt);
-  $('fcSimNote').textContent=`${fDay(days[0].t)}~${fDay(days[days.length-1].t)} · 단위 ${F.name} · 예상 주문 기본값 = 실적 조회의 계획량, 없으면 최근 7일 평균 수신 ${fmt(D.avgOrd)}건`;
-  $('fcSim').innerHTML=days.map((d,i)=>{const o=S?S.out[i]:null, wd=d_(d.t).getUTCDay(), b=o&&o.b, lt=b?b.lt:null;
+  const S=ph?fcSim(D,ph,days,L.cut,null):null, tgt=fcNum(L.tgt);
+  $('fcSimNote').textContent=`${fDay(days[0].t)}~${fDay(days[days.length-1].t)} · 단위 ${F.name} · 예상 주문 기본값 = 실적 조회의 계획량, 없으면 최근 7일 평균 수신 ${fmt(D.avgOrd)}건 · 인원 기본값 = 기본 인원`;
+  $('fcSim').innerHTML=days.map((d,i)=>{const o=S?S.out[i]:null, wd=d_(d.t).getUTCDay(), b=o&&o.b, lt=b?b.lt:null, sc=L.sc[d.dk]||{};
     const ltc=lt==null?'':tgt!=null?(lt<=tgt?'ok':'bad'):'';
     return `<tr class="${d.w?'':'off'}"><td><b>${fDay(d.t)}</b> <span class="${wd===0?'sun':wd===6?'sat':''}">${WD[wd]}</span></td>
       <td><input data-sc="o" data-d="${d.dk}" inputmode="numeric" value="${fmt(d.o)}" title="${d.oSrc==='plan'?'계획량':d.oSrc==='avg'?'최근 평균':'직접 입력'}" style="${d.oSrc==='in'?'':'color:var(--muted)'}"></td>
-      <td><input data-sc="p" data-d="${d.dk}" inputmode="numeric" value="${d.p!=null?d.p:''}" placeholder="명" style="width:4.5em;${fcNum((L.sc[d.dk]||{}).p)!=null?'':'color:var(--muted)'}"></td>
+      <td><input data-sc="p" data-d="${d.dk}" inputmode="numeric" value="${d.p!=null?d.p:''}" placeholder="명" style="width:4.5em;${fcNum(sc.p)!=null?'':'color:var(--muted)'}"></td>
+      <td><input data-sc="h" data-d="${d.dk}" inputmode="decimal" value="${d.h}" style="width:3.5em;${fcNum(sc.h)!=null?'':'color:var(--muted)'}"></td>
       <td class="c"><input type="checkbox" data-sc="w" data-d="${d.dk}" ${d.w?'checked':''} aria-label="${fDay(d.t)} 근무"></td>
       <td>${o?fmt(o.cap):'-'}</td><td>${o?fmt(o.used):'-'}</td><td>${o?fmt(o.rem):'-'}</td><td>${o?fmt(o.rem/k):'-'}</td>
-      <td>${b?(b.done!=null?fDayW(b.done):'60일 안에 못 끝남'):(d.o?'-':'')}</td><td class="lt ${ltc}">${lt!=null?'D+'+lt:''}</td></tr>`;}).join('');
-  // KPI
+      <td>${b?(b.done!=null?fDayW(b.done):'90일 안에 못 끝남'):(d.o?'-':'')}</td><td class="lt ${ltc}">${lt!=null?'D+'+lt:''}</td></tr>`;}).join('');
   let need=null;
-  if(prod&&tgt!=null){ let lo=1,hi=3000;
-    const ok=P0=>{const r=fcSim(D,prod,days,L.cut,P0);return r.out.every(o=>!o.b||(o.b.lt!=null&&o.b.lt<=tgt));};
+  if(ph&&tgt!=null){ let lo=1,hi=3000;
+    const ok=P0=>fcSim(D,ph,days,L.cut,P0).out.every(o=>!o.b||(o.b.lt!=null&&o.b.lt<=tgt));
     if(ok(hi)){while(lo<hi){const mid=(lo+hi)>>1;if(ok(mid))hi=mid;else lo=mid+1;}need=lo;}else need=Infinity; }
   const lts=S?S.out.filter(o=>o.b&&o.b.lt!=null):[], wl=lts.reduce((a,o)=>a+o.b.lt*o.o,0), wn=lts.reduce((a,o)=>a+o.o,0);
   const oldest=D.back.length?D.back[0].t:null;
   $('fcKpi').innerHTML=
     pk('현재 잔여',fmt(backN),'건',`${fmt(backV)} ${F.u}${oldest!=null?` · 가장 오래된 수신 ${fDay(oldest)}`:''}`)+
-    pk('1인당 생산성',prod?fmt1(prod):'-',prod?F.u+'/일':'',P.man?'직접 입력':prod?`최근 ${D.ref.length}일 가중 평균`:'인원을 입력하세요')+
+    pk('생산성 (예측 적용)',ph?fmt1(ph):'-',ph?F.u+'/인시':'',ph?`${P.src} · 1인 하루 ${fmt(ph*H)}`:'① 표에 투입 인원을 넣으세요')+
     pk('예상 주문 합계',fmt(days.reduce((a,d)=>a+d.o,0)),'건',`${days.length}일 · ${fmt(days.reduce((a,d)=>a+d.o*k,0))} ${F.u}`)+
     pk('평균 예상 리드타임',wn?'D+'+fmt1(wl/wn):'-','',wn?'기간 중 수신 주문 건수 가중':'')+
-    pk('잔여 소진 예상',S&&S.clear!=null?fDayW(S.clear):'-','',S?(S.clear!=null?'기간 뒤엔 마지막 날 인원 유지 가정':'60일 안에 못 끝남'):'')+
-    pk(tgt!=null?`D+${tgt} 맞추려면`:'목표 리드타임',need==null?'-':need===Infinity?'3,000+':fmt(need),need!=null&&need!==Infinity?'명/일':'',tgt!=null?'근무일 모두 같은 인원일 때':'목표를 입력하세요');
-  const msg=[];
-  if(!prod)msg.push(`<span class="bad">기준 인원 또는 출고일별 투입 인원을 넣어야 예측이 나옵니다.</span> 지금 속도만 보면 최근 ${D.ref.length}일 평균 출고 ${D.ref.length?fmt(D.ref.reduce((a,r)=>a+r.N,0)/D.ref.length):0}건/일 → 현재 잔여 ${fmt(backN)}건을 비우는 데 약 <b>${D.ref.length&&D.ref.reduce((a,r)=>a+r.N,0)?fmt1(backN/(D.ref.reduce((a,r)=>a+r.N,0)/D.ref.length)):'-'}일</b>.`);
+    pk('잔여 소진 예상',S&&S.clear!=null?fDayW(S.clear):'-','',S?(S.clear!=null?'기간 뒤엔 마지막 날 인원 유지 가정':'90일 안에 못 끝남'):'')+
+    pk(tgt!=null?`D+${tgt} 맞추려면`:'목표 리드타임',need==null?'-':need===Infinity?'3,000+':fmt(need),need!=null&&need!==Infinity?'명/일':'',tgt!=null?`근무일 모두 같은 인원 · ${H}시간`:'목표를 입력하세요');
+  const msg=[], refAvg=D.ref.length?D.ref.reduce((a,r)=>a+r.N,0)/D.ref.length:0;
+  if(!ph)msg.push(`<span class="bad">① 표에 출고일별 투입 인원을 넣어야 예측이 나옵니다.</span> 지금 속도만 보면 최근 ${D.ref.length}일 평균 출고 ${fmt(refAvg)}건/일 → 현재 잔여 ${fmt(backN)}건을 비우는 데 약 <b>${refAvg?fmt1(backN/refAvg):'-'}일</b>.`);
   else{
+    if(!days.some(d=>d.p>0))msg.push(`<span class="bad">② 시나리오에 인원(또는 기본 인원)을 넣으세요.</span>`);
     const first=S.out.find(o=>o.b&&o.b.lt!=null);
     if(first)msg.push(`입력한 인원이면 <b>${fDay(first.t)}</b> 수신 주문은 <b>${fDayW(first.b.done)}</b>에 출고 완료 → <b class="${tgt!=null&&first.b.lt>tgt?'bad':'ok'}">D+${first.b.lt}</b>.`);
-    if(need!=null&&tgt!=null)msg.push(need===Infinity?`<span class="bad">D+${tgt}는 인원 3,000명으로도 맞출 수 없습니다 (현재 잔여가 너무 큼).</span>`:`모든 날 D+${tgt} 안에 내보내려면 근무일마다 <b>${fmt(need)}명</b>이 필요합니다 (1인당 ${fmt1(prod)} ${F.u}/일 기준).`);
+    if(need!=null&&tgt!=null)msg.push(need===Infinity?`<span class="bad">D+${tgt}는 인원 3,000명으로도 맞출 수 없습니다 (현재 잔여가 너무 큼).</span>`:`모든 날 D+${tgt} 안에 내보내려면 근무일마다 <b>${fmt(need)}명</b> (${H}시간)이 필요합니다.`);
   }
   $('fcMsg').innerHTML=msg.join('<br>');
-  $('fcSimFoot').innerHTML=`처리 능력 = 인원 × 1인당 생산성 · 현재 잔여(수신일 순)부터 선입선출로 처리 · ${L.cut?'그날 수신분은 다음 날부터 처리':'그날 수신분도 당일 처리 가능'} · `+
-    `리드타임 = 그날 수신 주문이 전부 출고 완료되는 날 − 수신일 · 회색 = 기본값(계획량·평균·기준 인원), 검은색 = 직접 입력 · 기준시각 이후 오늘 남은 처리·수신은 반영하지 않음`;
+  $('fcSimFoot').innerHTML=`처리 능력 = 인원 × 근무시간 × 인시당 생산성 · 현재 잔여(수신일 순)부터 선입선출 · ${L.cut?'그날 수신분은 다음 날부터 처리':'그날 수신분도 당일 처리 가능'} · `+
+    `리드타임 = 그날 수신 주문이 전부 출고 완료되는 날 − 수신일 · 회색 = 기본값, 검은색 = 직접 입력 · 기준시각 이후 오늘 남은 처리·수신은 반영하지 않음`;
 }
 function fcSet(fn){fn(state.lt);save();renderForecast();}
 document.querySelectorAll('[data-fb]').forEach(b=>b.onclick=()=>fcSet(L=>{L.fb=b.dataset.fb;}));
 $('fcBase').onchange=e=>fcSet(L=>{L.base=fcNum(e.target.value);});
-$('fcProd').onchange=e=>fcSet(L=>{L.prod=fcNum(e.target.value);});
+$('fcDefH').onchange=e=>fcSet(L=>{L.defH=fcNum(e.target.value);});
 $('fcN').onchange=e=>fcSet(L=>{L.n=+e.target.value;});
 $('fcTgt').onchange=e=>fcSet(L=>{L.tgt=fcNum(e.target.value);});
 $('fcCut').onchange=e=>fcSet(L=>{L.cut=e.target.checked;});
-$('fcRef').addEventListener('change',e=>{const dk=e.target.dataset.ppl;if(!dk)return;fcSet(L=>{const v=fcNum(e.target.value);if(v==null)delete L.ppl[dk];else L.ppl[dk]=v;});});
+$('fcRef').addEventListener('change',e=>{const t=e.target,d=t.dataset;
+  if(d.ppl)fcSet(L=>{const v=fcNum(t.value);if(v==null)delete L.ppl[d.ppl];else L.ppl[d.ppl]=v;});
+  else if(d.hrs)fcSet(L=>{const v=fcNum(t.value);if(v==null)delete L.hrs[d.hrs];else L.hrs[d.hrs]=v;});
+  else if(d.inc)fcSet(L=>{if(t.checked)delete L.ex[d.inc];else L.ex[d.inc]=1;});});
+$('fcPick').addEventListener('change',e=>{const t=e.target;
+  if(t.name==='fcpm')fcSet(L=>{L.pm=t.value;});
+  else if(t.id==='fcProd')fcSet(L=>{L.prod=fcNum(t.value);L.pm='man';});});
 $('fcSim').addEventListener('change',e=>{const t=e.target,dk=t.dataset.d,k=t.dataset.sc;if(!dk)return;
   fcSet(L=>{const o=L.sc[dk]||(L.sc[dk]={}); if(k==='w')o.w=t.checked?1:0; else{const v=fcNum(t.value); if(v==null)delete o[k]; else o[k]=v;}});});
-$('fcAll').onclick=()=>{const v=fcNum(prompt('기간 전체에 넣을 인원 (명)',''));if(v==null)return;
-  const s=curSnap();if(!s)return;const D=fcData(model(s));fcSet(L=>{for(const d of fcDays(D)){(L.sc[d.dk]||(L.sc[d.dk]={})).p=v;}});};
-$('fcReset').onclick=()=>{if(!confirm('리드타임 예측의 입력값(인원·예상 주문·생산성)을 모두 지울까요?'))return;
-  fcSet(L=>{L.ppl={};L.sc={};L.base=null;L.prod=null;});};
+$('fcReset').onclick=()=>{if(!confirm('시나리오 입력값(예상 주문·인원·근무시간)을 지울까요? ① 생산성 확인의 투입 인원은 유지됩니다.'))return;
+  fcSet(L=>{L.sc={};L.base=null;});};
 
 load(); route();
 fetch('data.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(s=>{
