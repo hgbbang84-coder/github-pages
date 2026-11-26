@@ -1058,9 +1058,14 @@ function parseTSV(t){
 }
 document.addEventListener('paste',e=>{
   if($('view-upload').hidden)return;
-  const a=document.activeElement; if(a&&a!==drop&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'))return;
-  const t=e.clipboardData&&e.clipboardData.getData('text/plain'); if(!t)return;
-  e.preventDefault();
+  const a=document.activeElement, inInput=a&&a!==drop&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA');
+  const t=e.clipboardData&&e.clipboardData.getData('text/plain');
+  // 추출 시각 칸에 커서가 있어도, 표(탭·줄바꿈이 있는 큰 내용)를 붙여넣으면 원본으로 처리
+  if(inInput&&!(t&&t.length>500&&t.includes('\t')&&t.includes('\n')))return;
+  if(!t){const ty=e.clipboardData?[...e.clipboardData.types].join(', '):'';
+    setMsg('붙여넣은 내용이 비어 있습니다. 엑셀에서 다시 복사(Ctrl+C)한 뒤 붙여넣어 주세요. 계속 비어 있으면 회사 보안 프로그램이 외부 사이트 붙여넣기를 막고 있을 수 있습니다.'+(ty?' (받은 형식: '+ty+')':''),'bad');
+    $('pasteState').textContent='붙여넣은 내용 없음';return;}
+  e.preventDefault(); if(inInput)a.blur();
   setMsg(`붙여넣은 내용 계산 중… (${fmt(t.length/1e6)}MB)`); $('pasteState').textContent='계산 중…';
   setTimeout(()=>{
     try{
